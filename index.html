@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ma Cave · Haier HWS84GA</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: radial-gradient(ellipse at 50% 40%, #3A0E1E 0%, #220A12 40%, #120508 100%);
+  font-family:'Georgia',serif; color:#E8D5A0; overflow:hidden;
+}
+canvas { display:block; }
+
+#ui {
+  position:fixed; top:0; left:0; right:0;
+  display:flex; justify-content:space-between; align-items:flex-start;
+  padding:20px 24px; pointer-events:none;
+  background:linear-gradient(180deg,#0A080990 0%,transparent 100%);
+}
+#brand { font-size:10px; letter-spacing:3px; color:#5A4A52; text-transform:uppercase; margin-bottom:3px; }
+#title { font-size:24px; font-weight:700; color:#E8D5A0; letter-spacing:2px; text-shadow:0 2px 12px #00000090; }
+#subtitle { font-size:11px; color:#5A4A52; letter-spacing:2px; margin-top:2px; }
+
+#stats { display:flex; gap:10px; }
+.stat-box {
+  background:#1C1018CC; border:1px solid #B8952A28;
+  border-radius:10px; padding:9px 14px; text-align:center;
+  backdrop-filter:blur(12px);
+  box-shadow:0 4px 16px #00000060, inset 0 1px 0 #B8952A18;
+}
+.stat-num { font-size:20px; font-weight:700; color:#B8952A; line-height:1; }
+.stat-lbl { font-size:9px; color:#5A4A52; letter-spacing:1.5px; margin-top:3px; text-transform:uppercase; }
+
+#controls {
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  display:flex; gap:8px;
+}
+.ctrl-btn {
+  padding:9px 18px; border-radius:9px; border:none; cursor:pointer;
+  font-family:'Georgia',serif; font-size:12px; letter-spacing:0.8px;
+  background:#221520; color:#A08090;
+  box-shadow:0 3px 0 #00000070, inset 0 1px 0 #FFFFFF0C;
+  transition:all .18s;
+}
+.ctrl-btn:hover { background:#2E1A28; color:#E8D5A0; transform:translateY(-1px); }
+.ctrl-btn.active { background:#6A1430; color:#E8C870; box-shadow:0 2px 0 #00000070, 0 0 12px #7A1A3A40, inset 0 1px 0 #FFFFFF18; }
+
+#hint {
+  position:fixed; bottom:72px; left:50%; transform:translateX(-50%);
+  font-size:10px; color:#3A2A32; letter-spacing:1px; pointer-events:none; white-space:nowrap;
+}
+
+/* Light toggle button */
+#btn-light {
+  position:fixed;
+  right: calc(50% - 260px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: none; cursor: pointer;
+  background: #1A0E16;
+  box-shadow: 0 4px 0 #00000080, 0 8px 24px #00000060, inset 0 1px 0 #FFFFFF10;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 20;
+}
+#btn-light:hover { transform: translateY(-50%) translateY(-2px); box-shadow: 0 6px 0 #00000080, 0 12px 28px #00000060, inset 0 1px 0 #FFFFFF18; }
+#btn-light.lit {
+  background: radial-gradient(circle at 40% 35%, #FFF5CC, #E8C040 50%, #B8900A);
+  box-shadow: 0 4px 0 #00000060, 0 0 30px #FFCC4460, 0 0 60px #FFB82030, inset 0 1px 0 #FFFFFF50;
+}
+#btn-light svg { transition: all 0.3s; }
+#btn-light.lit svg { filter: drop-shadow(0 0 6px #FFD050); }
+#light-label {
+  position:fixed;
+  right: calc(50% - 268px);
+  top: calc(50% + 38px);
+  font-size: 9px; letter-spacing: 1.5px; color: #3A2A32;
+  text-transform: uppercase; pointer-events: none;
+  transition: color 0.4s;
+  text-align: center;
+  width: 72px;
+  margin-left: -8px;
+}
+#light-label.lit { color: #C0A040; }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div>
+    <div id="brand">Haier HWS84GA · Wine Bank 50 SE</div>
+    <div id="title">MA CAVE</div>
+    <div id="subtitle">Collection privée · 3D</div>
+  </div>
+  <div id="stats">
+    <div class="stat-box">
+      <div class="stat-num" id="stat-total">0</div>
+      <div class="stat-lbl">Bouteilles</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num">84</div>
+      <div class="stat-lbl">Capacité</div>
+    </div>
+  </div>
+</div>
+
+<div id="hint">☞ Glisser pour pivoter · Molette pour zoomer</div>
+
+<button id="btn-light" onclick="toggleLight()" title="Lumière intérieure">
+  <svg id="bulb-svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4A3050" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 21h6M10 17.5A5 5 0 1 1 14 17.5"/>
+    <line x1="12" y1="17.5" x2="12" y2="13"/>
+    <path d="M9.5 13.5h5"/>
+  </svg>
+</button>
+<div id="light-label">Lumière</div>
+
+<div id="controls">
+  <button class="ctrl-btn active" id="btn-front" onclick="setView('front')">Face</button>
+  <button class="ctrl-btn" id="btn-angle" onclick="setView('angle')">3/4</button>
+  <button class="ctrl-btn" id="btn-open" onclick="toggleDoor()">Ouvrir</button>
+  <button class="ctrl-btn" id="btn-side" onclick="setView('side')">Côté</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─── Scene ───────────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+// Background handled by CSS radial gradient
+scene.fog = new THREE.FogExp2(0x1A0810, 0.032);
+
+const camera = new THREE.PerspectiveCamera(36, innerWidth/innerHeight, 0.01, 80);
+camera.position.set(0, 0, 8.0);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+renderer.setClearColor(0x000000, 0);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+// ─── Lights ───────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x180810, 1.2));
+
+const sun = new THREE.DirectionalLight(0xFFF0E0, 2.2);
+sun.position.set(4, 6, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.near = 0.1;
+sun.shadow.camera.far = 30;
+sun.shadow.camera.left = -4; sun.shadow.camera.right = 4;
+sun.shadow.camera.top = 4;  sun.shadow.camera.bottom = -4;
+sun.shadow.bias = -0.0005;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0x301820, 0.8);
+fill.position.set(-3, 1, -2);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xC0A060, 0.5);
+rim.position.set(0, -4, 3);
+scene.add(rim);
+
+// Interior LED warm light — inside cave (off by default)
+const ledA = new THREE.PointLight(0xFFCC88, 0.0, 3.0);
+ledA.position.set(0, 0.6, 0.5);
+scene.add(ledA);
+const ledB = new THREE.PointLight(0xFFBB66, 0.0, 2.0);
+ledB.position.set(0, -0.8, 0.5);
+scene.add(ledB);
+// ledTop added after dimensions are defined below
+
+// ─── Dimensions (real: 497×585×1270mm, scale: 1u=497mm) ───────────────────────
+const CW = 1.0;
+const CD = 1.178;  // 585/497
+const CH = 2.556;  // 1270/497
+const WT = 0.055;  // frame thickness (real ~25mm)
+const iW = CW - 2*WT;
+const iD = CD - 2*WT;
+const iH = CH - 2*WT;
+
+// Top LED strip (needs CH — placed here after dimensions)
+const ledTop = new THREE.PointLight(0xFFDDA0, 0.0, 4.0);
+ledTop.position.set(0, CH/2 - WT - 0.12, 0.2);
+scene.add(ledTop);
+
+// ─── Materials ─────────────────────────────────────────────────────────────────
+// Outer frame: black gloss (like the real photos)
+const matFrame = new THREE.MeshStandardMaterial({
+  color:0x080608, roughness:0.08, metalness:0.75,
+  envMapIntensity:1.0
+});
+// Inner cavity: very dark matte black
+const matInner = new THREE.MeshStandardMaterial({
+  color:0x070507, roughness:0.85, metalness:0.0
+});
+// Wood shelves: warm honey/rosé color as seen in photos
+const matWood = new THREE.MeshStandardMaterial({
+  color:0xC8906A, roughness:0.75, metalness:0.0
+});
+// Wood edge label strip (slightly lighter)
+const matWoodEdge = new THREE.MeshStandardMaterial({
+  color:0xE0AA80, roughness:0.6, metalness:0.05
+});
+// Glass door: dark tinted, semi-transparent
+const matGlass = new THREE.MeshStandardMaterial({
+  color:0x182028, roughness:0.03, metalness:0.15,
+  transparent:true, opacity:0.30, side:THREE.DoubleSide
+});
+// Glass door tint layer (more reflective)
+const matGlassRefl = new THREE.MeshStandardMaterial({
+  color:0x101820, roughness:0.02, metalness:0.4,
+  transparent:true, opacity:0.15, side:THREE.FrontSide
+});
+// Display panel: matte black with subtle texture
+const matPanel = new THREE.MeshStandardMaterial({
+  color:0x0A0710, roughness:0.45, metalness:0.3
+});
+// Display screen (blue glow)
+const matScreen = new THREE.MeshStandardMaterial({
+  color:0x001830, roughness:0.3, metalness:0.5,
+  emissive:0x004488, emissiveIntensity:0.9
+});
+// Haier logo text area on glass
+const matLogoArea = new THREE.MeshStandardMaterial({
+  color:0xCCBBAA, roughness:0.5, metalness:0.2,
+  transparent:true, opacity:0.7
+});
+// Lock dot (gold)
+const matGold = new THREE.MeshStandardMaterial({
+  color:0xB8952A, roughness:0.2, metalness:0.9
+});
+// Shelf label strip (label names on wood edges)
+const matLabel = new THREE.MeshStandardMaterial({
+  color:0xF5EEDD, roughness:0.9, metalness:0.0
+});
+
+// ─── Cave group ────────────────────────────────────────────────────────────────
+const caveGroup = new THREE.Group();
+scene.add(caveGroup);
+
+function addMesh(geo, mat, x=0, y=0, z=0, rx=0, ry=0, rz=0, shadows=true) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
+  if(shadows){ m.castShadow=true; m.receiveShadow=true; }
+  caveGroup.add(m); return m;
+}
+function box(w,h,d, mat, x=0,y=0,z=0, rx=0,ry=0,rz=0, sh=true) {
+  return addMesh(new THREE.BoxGeometry(w,h,d), mat, x,y,z, rx,ry,rz, sh);
+}
+function cyl(rt,rb,h, mat, x=0,y=0,z=0, rx=0,ry=0,rz=0, seg=16) {
+  return addMesh(new THREE.CylinderGeometry(rt,rb,h,seg), mat, x,y,z, rx,ry,rz);
+}
+
+// ── OUTER FRAME SHELL ─────────────────────────────────────────────────────────
+// Back wall
+box(CW, CH, WT,   matFrame, 0,  0, -(CD/2-WT/2));
+// Left wall
+box(WT, CH, CD,   matFrame, -(CW/2-WT/2), 0, 0);
+// Right wall
+box(WT, CH, CD,   matFrame,  (CW/2-WT/2), 0, 0);
+// Top
+box(CW, WT, CD,   matFrame, 0,  CH/2-WT/2, 0);
+// Bottom
+box(CW, WT, CD,   matFrame, 0, -CH/2+WT/2, 0);
+
+// Frame rounded look: thin front edge strips (creates "frame" border on front face)
+const FRTW = 0.028; // front trim width
+// Top front trim
+box(CW, FRTW, FRTW, matFrame, 0,  CH/2-FRTW/2, CD/2-FRTW/2);
+// Bottom front trim
+box(CW, FRTW, FRTW, matFrame, 0, -CH/2+FRTW/2, CD/2-FRTW/2);
+// Left front trim
+box(FRTW, CH, FRTW, matFrame, -(CW/2-FRTW/2), 0, CD/2-FRTW/2);
+// Right front trim
+box(FRTW, CH, FRTW, matFrame,  (CW/2-FRTW/2), 0, CD/2-FRTW/2);
+
+// ── INNER CAVITY ──────────────────────────────────────────────────────────────
+// Inner back
+box(iW, iH, 0.01, matInner, 0, 0, -(CD/2-WT));
+// Inner left
+box(0.01, iH, iD, matInner, -(CW/2-WT), 0, 0);
+// Inner right
+box(0.01, iH, iD, matInner,  (CW/2-WT), 0, 0);
+// Inner top
+box(iW, 0.01, iD, matInner, 0,  CH/2-WT, 0);
+// Inner bottom
+box(iW, 0.01, iD, matInner, 0, -CH/2+WT, 0);
+
+// ── CONTROL PANEL (top, slightly recessed) ────────────────────────────────────
+const PNLH = 0.095;
+const pnlY = CH/2 - PNLH/2;
+const pnlZ = CD/2 - 0.005;
+
+box(CW - 2*FRTW, PNLH, 0.008, matPanel, 0, pnlY, pnlZ);
+
+// Display area (blue glow, left-center as in photo)
+box(0.30, 0.042, 0.003, matScreen, -0.08, pnlY, pnlZ+0.005);
+
+// Touch icons (small raised dots/rectangles)
+const iconW = 0.025, iconH = 0.018, iconD = 0.003;
+const iconY = pnlY, iconZ = pnlZ + 0.004;
+const iconMat = new THREE.MeshStandardMaterial({ color:0x334466, roughness:0.4, metalness:0.5, emissive:0x112244, emissiveIntensity:0.5 });
+[-0.38, -0.30, 0.18, 0.26, 0.34].forEach(ix => {
+  box(iconW, iconH, iconD, iconMat, ix, iconY, iconZ);
+});
+
+// ── 7 WOODEN SHELVES (lattes verticales comme la vraie Haier) ─────────────────
+const usableTop = CH/2 - WT - PNLH;
+const usableBot = -CH/2 + WT;
+const usableH   = usableTop - usableBot;
+
+const SHELF_COUNT = 7;
+const shelfSpacing = usableH / (SHELF_COUNT + 0.5);
+
+const shelfW  = iW - 0.06;
+const shelfD3 = iD - 0.14;
+const slatH   = 0.016;
+const slatSec = 0.015;
+const SLAT_COUNT = 10;
+const slatSpacing = shelfW / SLAT_COUNT;
+
+const backZ  = -(CD/2 - WT) + 0.05;
+const frontZ2 = backZ + shelfD3;
+const midZ   = backZ + shelfD3/2;
+
+const shelfPositions = [];
+
+for(let i=0; i<SHELF_COUNT; i++){
+  const sy = usableBot + shelfSpacing * (i + 0.8);
+  shelfPositions.push({ y: sy, z: midZ });
+
+  // Front + back rails (depth direction)
+  box(shelfW, slatSec, slatSec, matWoodEdge, 0, sy, frontZ2 - slatSec/2);
+  box(shelfW, slatSec, slatSec, matWoodEdge, 0, sy, backZ   + slatSec/2);
+
+  // Vertical slats across width (x axis) — like the real product photo
+  for(let s=0; s<SLAT_COUNT; s++){
+    const sx = -shelfW/2 + slatSpacing/2 + s * slatSpacing;
+    box(slatSec, slatH, shelfD3, matWood, sx, sy, midZ);
+  }
+
+  // Front label rail
+  const railH = 0.036;
+  box(shelfW, railH, 0.013, matWoodEdge, 0, sy + slatH/2 + railH/2, frontZ2 + 0.009);
+  // White label paper
+  box(shelfW * 0.5, railH * 0.48, 0.001, matLabel, 0, sy + slatH/2 + railH/2, frontZ2 + 0.016);
+}
+
+// ── DOOR GROUP (pivots on left hinge) ─────────────────────────────────────────
+const doorGroup = new THREE.Group();
+// Pivot at left edge of front face
+doorGroup.position.set(-CW/2, 0, CD/2);
+caveGroup.add(doorGroup);
+
+const doorH = CH - PNLH;
+const doorY = -PNLH/2;
+
+// Door frame border (black gloss, thicker border as in photo)
+const DB = 0.04; // door border thickness
+
+// Door top bar
+const dtop = new THREE.Mesh(new THREE.BoxGeometry(CW, DB, 0.028), matFrame);
+dtop.position.set(CW/2, doorY + doorH/2 - DB/2, 0);
+dtop.castShadow=true; doorGroup.add(dtop);
+
+// Door bottom bar
+const dbot = new THREE.Mesh(new THREE.BoxGeometry(CW, DB, 0.028), matFrame);
+dbot.position.set(CW/2, doorY - doorH/2 + DB/2, 0);
+dbot.castShadow=true; doorGroup.add(dbot);
+
+// Door left bar
+const dleft = new THREE.Mesh(new THREE.BoxGeometry(DB, doorH, 0.028), matFrame);
+dleft.position.set(DB/2, doorY, 0);
+dleft.castShadow=true; doorGroup.add(dleft);
+
+// Door right bar
+const dright = new THREE.Mesh(new THREE.BoxGeometry(DB, doorH, 0.028), matFrame);
+dright.position.set(CW - DB/2, doorY, 0);
+dright.castShadow=true; doorGroup.add(dright);
+
+// Glass pane (main)
+const glassW = CW - 2*DB;
+const glassH = doorH - 2*DB;
+const glass1 = new THREE.Mesh(new THREE.BoxGeometry(glassW, glassH, 0.012), matGlass);
+glass1.position.set(CW/2, doorY, 0.002);
+doorGroup.add(glass1);
+
+// Glass reflection layer (front)
+const glass2 = new THREE.Mesh(new THREE.BoxGeometry(glassW, glassH, 0.002), matGlassRefl);
+glass2.position.set(CW/2, doorY, 0.008);
+doorGroup.add(glass2);
+
+// Haier logo on glass (subtle raised text plane)
+const logoMat = new THREE.MeshStandardMaterial({
+  color:0xDDCCBB, roughness:0.3, metalness:0.4,
+  transparent:true, opacity:0.55
+});
+const logoMesh = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.028, 0.001), logoMat);
+logoMesh.position.set(CW/2, doorY + doorH/2 - DB - 0.06, 0.014);
+doorGroup.add(logoMesh);
+
+// ── LOCK (bottom center, small gold cylinder) ──────────────────────────────────
+const lock = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.008,12), matGold);
+lock.rotation.x = Math.PI/2;
+lock.position.set(CW/2, doorY - doorH/2 + 0.06, 0.016);
+doorGroup.add(lock);
+
+// Lock keyhole slot
+const slotMat = new THREE.MeshStandardMaterial({ color:0x111111, roughness:1.0 });
+const slot = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.010, 0.002), slotMat);
+slot.position.set(CW/2, doorY - doorH/2 + 0.06, 0.020);
+doorGroup.add(slot);
+
+// ── FLOOR SHADOW CATCHER ──────────────────────────────────────────────────────
+const floorMat = new THREE.ShadowMaterial({ opacity:0.5 });
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(10,10), floorMat);
+floor.rotation.x = -Math.PI/2;
+floor.position.y = -CH/2 - 0.01;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// ─── Orbit ────────────────────────────────────────────────────────────────────
+let drag=false, px=0, py=0;
+let rotX=0.10, rotY=0.28, tRotX=0.10, tRotY=0.28;
+let zoom=8.0, tZoom=8.0;
+
+renderer.domElement.addEventListener('mousedown', e=>{drag=true;px=e.clientX;py=e.clientY;});
+renderer.domElement.addEventListener('touchstart', e=>{drag=true;px=e.touches[0].clientX;py=e.touches[0].clientY;},{passive:true});
+window.addEventListener('mouseup', ()=>drag=false);
+window.addEventListener('touchend', ()=>drag=false);
+window.addEventListener('mousemove', e=>{
+  if(!drag) return;
+  tRotY += (e.clientX-px)*0.007; tRotX += (e.clientY-py)*0.007;
+  tRotX = Math.max(-0.9, Math.min(0.9, tRotX));
+  px=e.clientX; py=e.clientY;
+});
+window.addEventListener('touchmove', e=>{
+  if(!drag) return;
+  tRotY += (e.touches[0].clientX-px)*0.007; tRotX += (e.touches[0].clientY-py)*0.007;
+  tRotX = Math.max(-0.9, Math.min(0.9, tRotX));
+  px=e.touches[0].clientX; py=e.touches[0].clientY;
+},{passive:true});
+window.addEventListener('wheel', e=>{tZoom = Math.max(3.5, Math.min(14, tZoom+e.deltaY*0.006));});
+
+// ─── Door animation ────────────────────────────────────────────────────────────
+let doorOpen=false, doorAngle=0, tDoor=0;
+function toggleDoor(){
+  doorOpen=!doorOpen; tDoor=doorOpen ? -Math.PI*0.6 : 0;
+  document.getElementById('btn-open').textContent = doorOpen ? 'Fermer' : 'Ouvrir';
+}
+
+// ─── Light toggle ─────────────────────────────────────────────────────────────
+let lightOn = false;
+let ledCurrent = 0.0;   // actual intensity (smoothly animated)
+let ledTarget  = 0.0;   // target intensity
+
+function toggleLight(){
+  lightOn = !lightOn;
+  ledTarget = lightOn ? 1.0 : 0.0;
+  const btn = document.getElementById('btn-light');
+  const lbl = document.getElementById('light-label');
+  const svg = document.getElementById('bulb-svg');
+  if(lightOn){
+    btn.classList.add('lit');
+    lbl.classList.add('lit');
+    svg.setAttribute('stroke','#1A1000');
+  } else {
+    btn.classList.remove('lit');
+    lbl.classList.remove('lit');
+    svg.setAttribute('stroke','#4A3050');
+  }
+}
+
+// ─── Views ────────────────────────────────────────────────────────────────────
+function setView(v){
+  document.querySelectorAll('.ctrl-btn').forEach(b=>b.classList.remove('active'));
+  if(v==='front'){ tRotX=0.06; tRotY=0.0;          tZoom=8.0;  document.getElementById('btn-front').classList.add('active'); }
+  if(v==='angle'){ tRotX=0.14; tRotY=0.55;          tZoom=8.5;  document.getElementById('btn-angle').classList.add('active'); }
+  if(v==='side'){  tRotX=0.08; tRotY=Math.PI/2;     tZoom=8.5;  document.getElementById('btn-side').classList.add('active'); }
+}
+
+// ─── Render loop ───────────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+let ledT=0;
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+
+  rotX += (tRotX-rotX)*0.07;
+  rotY += (tRotY-rotY)*0.07;
+  zoom += (tZoom-zoom)*0.07;
+  caveGroup.rotation.x = rotX;
+  caveGroup.rotation.y = rotY;
+  camera.position.z = zoom;
+
+  doorAngle += (tDoor-doorAngle)*0.055;
+  doorGroup.rotation.y = doorAngle;
+
+  // LED progressive fade in/out
+  ledT += dt;
+  ledCurrent += (ledTarget - ledCurrent) * (dt * 1.8);  // smooth ~0.5s transition
+  const flicker = lightOn
+    ? ledCurrent * (1.4 + Math.sin(ledT*4.1)*0.04 + Math.sin(ledT*13.7)*0.018)
+    : ledCurrent * 1.4;
+  ledA.intensity   = flicker;
+  ledB.intensity   = flicker * 0.55;
+  ledTop.intensity = flicker * 0.7;
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
