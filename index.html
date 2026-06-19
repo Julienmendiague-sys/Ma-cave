@@ -105,7 +105,7 @@ canvas { display:block; }
   </div>
 </div>
 
-<div id="hint">☞ Glisser pour pivoter · Molette pour zoomer</div>
+<div id="hint" id="hint">☞ Ouvrir la porte pour déplacer les clayettes</div>
 
 <div id="light-wrap">
   <button id="btn-light" onclick="toggleLight()" title="Lumière intérieure">
@@ -316,7 +316,7 @@ const iconMat = new THREE.MeshStandardMaterial({ color:0x334466, roughness:0.4, 
   box(iconW, iconH, iconD, iconMat, ix, iconY, iconZ);
 });
 
-// ── 7 WOODEN SHELVES (lattes verticales comme la vraie Haier) ─────────────────
+// ── 7 WOODEN SHELVES — draggable groups ──────────────────────────────────────
 const usableTop = CH/2 - WT - PNLH;
 const usableBot = -CH/2 + WT;
 const usableH   = usableTop - usableBot;
@@ -324,38 +324,73 @@ const usableH   = usableTop - usableBot;
 const SHELF_COUNT = 7;
 const shelfSpacing = usableH / (SHELF_COUNT + 0.5);
 
-const shelfW  = iW - 0.06;
-const shelfD3 = iD - 0.14;
-const slatH   = 0.016;
-const slatSec = 0.015;
+const shelfW   = iW - 0.06;
+const shelfD3  = iD - 0.14;
+const slatH    = 0.016;
+const slatSec  = 0.015;
 const SLAT_COUNT = 10;
 const slatSpacing = shelfW / SLAT_COUNT;
 
-const backZ  = -(CD/2 - WT) + 0.05;
+const backZ   = -(CD/2 - WT) + 0.05;
 const frontZ2 = backZ + shelfD3;
-const midZ   = backZ + shelfD3/2;
+const midZ    = backZ + shelfD3/2;
 
-const shelfPositions = [];
+// Materials for selected state
+const matWoodSel     = new THREE.MeshStandardMaterial({ color:0xFFD070, roughness:0.5, metalness:0.1 });
+const matWoodEdgeSel = new THREE.MeshStandardMaterial({ color:0xFFE090, roughness:0.4, metalness:0.15 });
 
-for(let i=0; i<SHELF_COUNT; i++){
-  const sy = usableBot + shelfSpacing * (i + 0.8);
-  shelfPositions.push({ y: sy, z: midZ });
+// Each shelf = one Group parented to caveGroup
+const shelfGroups = [];  // { group, targetY, currentY, meshes[] }
 
-  // Front + back rails (depth direction)
-  box(shelfW, slatSec, slatSec, matWoodEdge, 0, sy, frontZ2 - slatSec/2);
-  box(shelfW, slatSec, slatSec, matWoodEdge, 0, sy, backZ   + slatSec/2);
+function buildShelf(sy) {
+  const g = new THREE.Group();
+  g.position.set(0, sy, 0);
+  caveGroup.add(g);
 
-  // Vertical slats across width (x axis) — like the real product photo
+  const meshes = [];
+
+  function lbox(w,h,d,mat,x=0,y=0,z=0) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+    m.position.set(x,y,z);
+    m.castShadow = true; m.receiveShadow = true;
+    g.add(m); meshes.push(m); return m;
+  }
+
+  // Front + back rails
+  lbox(shelfW, slatSec, slatSec, matWoodEdge, 0, 0, frontZ2 - slatSec/2);
+  lbox(shelfW, slatSec, slatSec, matWoodEdge, 0, 0, backZ   + slatSec/2);
+
+  // Slats (vertical, across width)
   for(let s=0; s<SLAT_COUNT; s++){
     const sx = -shelfW/2 + slatSpacing/2 + s * slatSpacing;
-    box(slatSec, slatH, shelfD3, matWood, sx, sy, midZ);
+    lbox(slatSec, slatH, shelfD3, matWood, sx, 0, midZ);
   }
 
   // Front label rail
   const railH = 0.036;
-  box(shelfW, railH, 0.013, matWoodEdge, 0, sy + slatH/2 + railH/2, frontZ2 + 0.009);
-  // White label paper
-  box(shelfW * 0.5, railH * 0.48, 0.001, matLabel, 0, sy + slatH/2 + railH/2, frontZ2 + 0.016);
+  lbox(shelfW, railH, 0.013, matWoodEdge, 0, slatH/2 + railH/2, frontZ2 + 0.009);
+  lbox(shelfW * 0.5, railH * 0.48, 0.001, matLabel, 0, slatH/2 + railH/2, frontZ2 + 0.016);
+
+  return { group: g, targetY: sy, currentY: sy, meshes, selected: false };
+}
+
+for(let i=0; i<SHELF_COUNT; i++){
+  const sy = usableBot + shelfSpacing * (i + 0.8);
+  shelfGroups.push(buildShelf(sy));
+}
+
+// Highlight / unhighlight a shelf
+function highlightShelf(sh, on) {
+  sh.selected = on;
+  sh.meshes.forEach(m => {
+    if(m.geometry.parameters && m.geometry.parameters.width === shelfW * 0.5) return; // label paper
+    if(on) {
+      m.userData.origMat = m.material;
+      m.material = m.material === matWood ? matWoodSel : matWoodEdgeSel;
+    } else {
+      if(m.userData.origMat) m.material = m.userData.origMat;
+    }
+  });
 }
 
 // ── DOOR GROUP (pivots on left hinge) ─────────────────────────────────────────
@@ -431,27 +466,104 @@ floor.position.y = -CH/2 - 0.01;
 floor.receiveShadow = true;
 scene.add(floor);
 
-// ─── Orbit ────────────────────────────────────────────────────────────────────
+// ─── Raycaster ────────────────────────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const mouse2d   = new THREE.Vector2();
+
+function getMouseNDC(clientX, clientY){
+  mouse2d.x = (clientX / innerWidth)  *  2 - 1;
+  mouse2d.y = (clientY / innerHeight) * -2 + 1;
+}
+
+function pickShelf(clientX, clientY){
+  getMouseNDC(clientX, clientY);
+  raycaster.setFromCamera(mouse2d, camera);
+  const allMeshes = shelfGroups.flatMap(s => s.meshes);
+  const hits = raycaster.intersectObjects(allMeshes, false);
+  if(!hits.length) return null;
+  const hitMesh = hits[0].object;
+  return shelfGroups.find(s => s.meshes.includes(hitMesh)) || null;
+}
+
+// ─── Orbit + Shelf drag ───────────────────────────────────────────────────────
 let drag=false, px=0, py=0;
 let rotX=0.10, rotY=0.28, tRotX=0.10, tRotY=0.28;
 let zoom=8.0, tZoom=8.0;
 
-renderer.domElement.addEventListener('mousedown', e=>{drag=true;px=e.clientX;py=e.clientY;});
-renderer.domElement.addEventListener('touchstart', e=>{drag=true;px=e.touches[0].clientX;py=e.touches[0].clientY;},{passive:true});
-window.addEventListener('mouseup', ()=>drag=false);
-window.addEventListener('touchend', ()=>drag=false);
-window.addEventListener('mousemove', e=>{
-  if(!drag) return;
-  tRotY += (e.clientX-px)*0.007; tRotX += (e.clientY-py)*0.007;
-  tRotX = Math.max(-0.9, Math.min(0.9, tRotX));
-  px=e.clientX; py=e.clientY;
-});
-window.addEventListener('touchmove', e=>{
-  if(!drag) return;
-  tRotY += (e.touches[0].clientX-px)*0.007; tRotX += (e.touches[0].clientY-py)*0.007;
-  tRotX = Math.max(-0.9, Math.min(0.9, tRotX));
-  px=e.touches[0].clientX; py=e.touches[0].clientY;
-},{passive:true});
+let activeShelf = null;   // shelf being dragged
+let dragStartY  = 0;      // screen Y when drag started
+let shelfStartY = 0;      // shelf world Y when drag started
+let tapTimeout  = null;   // distinguish tap vs drag
+
+// How many screen pixels = 1 world unit (approximate)
+function screenToWorld(screenDY){
+  // At current zoom, field of view maps to screen height
+  const vFovRad = camera.fov * Math.PI / 180;
+  const worldH  = 2 * Math.tan(vFovRad/2) * zoom;
+  return -(screenDY / innerHeight) * worldH;
+}
+
+function onPointerDown(clientX, clientY){
+  px = clientX; py = clientY;
+  drag = false;
+
+  // Try picking a shelf
+  const hit = doorOpen ? pickShelf(clientX, clientY) : null;
+  if(hit){
+    // Deselect previous
+    if(activeShelf && activeShelf !== hit) highlightShelf(activeShelf, false);
+    activeShelf  = hit;
+    dragStartY   = clientY;
+    shelfStartY  = hit.targetY;
+    highlightShelf(hit, true);
+  } else {
+    // Clicked empty → deselect
+    if(activeShelf){ highlightShelf(activeShelf, false); activeShelf = null; }
+    drag = true;
+  }
+}
+
+function onPointerMove(clientX, clientY){
+  const dx = clientX - px, dy = clientY - py;
+
+  if(activeShelf){
+    // Drag shelf vertically
+    const worldDY = screenToWorld(clientY - dragStartY);
+    let newY = shelfStartY + worldDY;
+    // Clamp inside usable space
+    newY = Math.max(usableBot + 0.05, Math.min(usableTop - 0.05, newY));
+    activeShelf.targetY = newY;
+    return;
+  }
+
+  if(drag){
+    tRotY += dx * 0.007; tRotX += dy * 0.007;
+    tRotX = Math.max(-0.9, Math.min(0.9, tRotX));
+  }
+  px = clientX; py = clientY;
+}
+
+function onPointerUp(){
+  if(activeShelf && Math.abs(dragStartY - py) < 6){
+    // It was a tap, not a drag — keep selected but don't move
+  }
+  drag = false;
+}
+
+renderer.domElement.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
+renderer.domElement.addEventListener('touchstart', e => {
+  onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+}, {passive:true});
+
+window.addEventListener('mousemove', e => { if(drag || activeShelf) onPointerMove(e.clientX, e.clientY); });
+window.addEventListener('touchmove', e => {
+  onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+  if(activeShelf) e.preventDefault();
+}, {passive:false});
+
+window.addEventListener('mouseup',  onPointerUp);
+window.addEventListener('touchend', onPointerUp);
+
 window.addEventListener('wheel', e=>{tZoom = Math.max(3.5, Math.min(14, tZoom+e.deltaY*0.006));});
 
 // ─── Door animation ────────────────────────────────────────────────────────────
@@ -459,6 +571,11 @@ let doorOpen=false, doorAngle=0, tDoor=0;
 function toggleDoor(){
   doorOpen=!doorOpen; tDoor=doorOpen ? -Math.PI*0.6 : 0;
   document.getElementById('btn-open').textContent = doorOpen ? 'Fermer' : 'Ouvrir';
+  // Deselect any active shelf when closing
+  if(!doorOpen && activeShelf){ highlightShelf(activeShelf, false); activeShelf = null; }
+  document.getElementById('hint').textContent = doorOpen
+    ? '☞ Toucher une clayette pour la sélectionner · Glisser pour déplacer'
+    : '☞ Ouvrir la porte pour déplacer les clayettes';
 }
 
 // ─── Light toggle ─────────────────────────────────────────────────────────────
@@ -508,6 +625,12 @@ function animate(){
 
   doorAngle += (tDoor-doorAngle)*0.055;
   doorGroup.rotation.y = doorAngle;
+
+  // Animate shelf positions smoothly
+  shelfGroups.forEach(s => {
+    s.currentY += (s.targetY - s.currentY) * 0.12;
+    s.group.position.y = s.currentY;
+  });
 
   // LED progressive fade in/out
   ledT += dt;
