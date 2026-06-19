@@ -51,38 +51,36 @@ canvas { display:block; }
   font-size:10px; color:#3A2A32; letter-spacing:1px; pointer-events:none; white-space:nowrap;
 }
 
-/* Light toggle button */
+/* Light toggle button — fixed bottom right, always visible */
+#light-wrap {
+  position: fixed;
+  bottom: 88px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 20;
+}
 #btn-light {
-  position:fixed;
-  right: calc(50% - 260px);
-  top: 50%;
-  transform: translateY(-50%);
-  width: 56px; height: 56px;
+  width: 54px; height: 54px;
   border-radius: 50%;
   border: none; cursor: pointer;
   background: #1A0E16;
   box-shadow: 0 4px 0 #00000080, 0 8px 24px #00000060, inset 0 1px 0 #FFFFFF10;
   display: flex; align-items: center; justify-content: center;
-  transition: all 0.3s ease;
-  z-index: 20;
+  transition: background 0.35s, box-shadow 0.35s;
 }
-#btn-light:hover { transform: translateY(-50%) translateY(-2px); box-shadow: 0 6px 0 #00000080, 0 12px 28px #00000060, inset 0 1px 0 #FFFFFF18; }
 #btn-light.lit {
-  background: radial-gradient(circle at 40% 35%, #FFF5CC, #E8C040 50%, #B8900A);
-  box-shadow: 0 4px 0 #00000060, 0 0 30px #FFCC4460, 0 0 60px #FFB82030, inset 0 1px 0 #FFFFFF50;
+  background: radial-gradient(circle at 40% 35%, #FFF8D0, #E8C040 55%, #A07808);
+  box-shadow: 0 4px 0 #00000060, 0 0 28px #FFCC4470, 0 0 56px #FFB02030, inset 0 1px 0 #FFFFFF60;
 }
-#btn-light svg { transition: all 0.3s; }
-#btn-light.lit svg { filter: drop-shadow(0 0 6px #FFD050); }
+#btn-light svg { transition: all 0.35s; }
+#btn-light.lit svg { filter: drop-shadow(0 0 5px #FFD040); }
 #light-label {
-  position:fixed;
-  right: calc(50% - 268px);
-  top: calc(50% + 38px);
   font-size: 9px; letter-spacing: 1.5px; color: #3A2A32;
   text-transform: uppercase; pointer-events: none;
   transition: color 0.4s;
-  text-align: center;
-  width: 72px;
-  margin-left: -8px;
 }
 #light-label.lit { color: #C0A040; }
 </style>
@@ -109,14 +107,20 @@ canvas { display:block; }
 
 <div id="hint">☞ Glisser pour pivoter · Molette pour zoomer</div>
 
-<button id="btn-light" onclick="toggleLight()" title="Lumière intérieure">
-  <svg id="bulb-svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4A3050" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M9 21h6M10 17.5A5 5 0 1 1 14 17.5"/>
-    <line x1="12" y1="17.5" x2="12" y2="13"/>
-    <path d="M9.5 13.5h5"/>
-  </svg>
-</button>
-<div id="light-label">Lumière</div>
+<div id="light-wrap">
+  <button id="btn-light" onclick="toggleLight()" title="Lumière intérieure">
+    <svg id="bulb-svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#5A3A60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="9" r="4"/>
+      <path d="M10 13.5v1.5a2 2 0 0 0 4 0v-1.5"/>
+      <line x1="12" y1="2" x2="12" y2="1"/>
+      <line x1="4.22" y1="4.22" x2="3.51" y2="3.51"/>
+      <line x1="19.78" y1="4.22" x2="20.49" y2="3.51"/>
+      <line x1="2" y1="9" x2="1" y2="9"/>
+      <line x1="22" y1="9" x2="23" y2="9"/>
+    </svg>
+  </button>
+  <div id="light-label">Lumière</div>
+</div>
 
 <div id="controls">
   <button class="ctrl-btn active" id="btn-front" onclick="setView('front')">Face</button>
