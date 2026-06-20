@@ -17,6 +17,7 @@ canvas { display:block; }
   display:flex; justify-content:space-between; align-items:flex-start;
   padding:20px 24px; pointer-events:none;
   background:linear-gradient(180deg,#0A080990 0%,transparent 100%);
+  transition: filter 0.4s;
 }
 #brand { font-size:10px; letter-spacing:3px; color:#5A4A52; text-transform:uppercase; margin-bottom:3px; }
 #title { font-size:24px; font-weight:700; color:#E8D5A0; letter-spacing:2px; text-shadow:0 2px 12px #00000090; }
@@ -34,7 +35,7 @@ canvas { display:block; }
 
 #controls {
   position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
-  display:flex; gap:8px;
+  display:flex; gap:8px; transition: filter 0.4s;
 }
 .ctrl-btn {
   padding:9px 18px; border-radius:9px; border:none; cursor:pointer;
@@ -49,24 +50,17 @@ canvas { display:block; }
 #hint {
   position:fixed; bottom:72px; left:50%; transform:translateX(-50%);
   font-size:10px; color:#3A2A32; letter-spacing:1px; pointer-events:none; white-space:nowrap;
+  transition: filter 0.4s;
 }
 
-/* Light toggle button — fixed bottom right, always visible */
 #light-wrap {
-  position: fixed;
-  bottom: 88px;
-  right: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  z-index: 20;
+  position: fixed; bottom: 88px; right: 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  z-index: 20; transition: filter 0.4s;
 }
 #btn-light {
-  width: 54px; height: 54px;
-  border-radius: 50%;
-  border: none; cursor: pointer;
-  background: #1A0E16;
+  width: 54px; height: 54px; border-radius: 50%;
+  border: none; cursor: pointer; background: #1A0E16;
   box-shadow: 0 4px 0 #00000080, 0 8px 24px #00000060, inset 0 1px 0 #FFFFFF10;
   display: flex; align-items: center; justify-content: center;
   transition: background 0.35s, box-shadow 0.35s;
@@ -77,12 +71,51 @@ canvas { display:block; }
 }
 #btn-light svg { transition: all 0.35s; }
 #btn-light.lit svg { filter: drop-shadow(0 0 5px #FFD040); }
-#light-label {
-  font-size: 9px; letter-spacing: 1.5px; color: #3A2A32;
-  text-transform: uppercase; pointer-events: none;
-  transition: color 0.4s;
-}
+#light-label { font-size: 9px; letter-spacing: 1.5px; color: #3A2A32; text-transform: uppercase; pointer-events: none; transition: color 0.4s; }
 #light-label.lit { color: #C0A040; }
+
+/* ── SHELF 3D OVERLAY ────────────────────────────────────────────────────── */
+#shelf-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.5s;
+}
+#shelf-overlay.visible { opacity: 1; pointer-events: all; }
+
+#shelf-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+}
+
+/* Top bar */
+#shelf-topbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 10;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 20px 24px;
+  background: linear-gradient(180deg, #0A060890 0%, transparent 100%);
+}
+#shelf-title { font-size: 20px; font-weight: 700; color: #E8D5A0; letter-spacing: 1px; }
+#shelf-subtitle { font-size: 11px; color: #7A6570; letter-spacing: 1px; margin-top: 3px; }
+#btn-close-shelf {
+  width: 38px; height: 38px; border-radius: 19px; border: none; cursor: pointer;
+  background: #2A1520CC; color: #A08090; font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 0 #00000060, inset 0 1px 0 #FFFFFF10;
+  transition: all .2s;
+}
+#btn-close-shelf:hover { background:#3A2030CC; color:#E8D5A0; }
+
+/* Bottom info bar */
+#shelf-bottombar {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+  padding: 16px 24px 32px;
+  background: linear-gradient(0deg, #0A060890 0%, transparent 100%);
+  display: flex; justify-content: space-between; align-items: flex-end;
+}
+#shelf-count { font-size: 12px; color: #7A6570; letter-spacing: 0.5px; }
+#shelf-count span { color: #B8952A; font-weight: 700; }
+#shelf-hint { font-size: 10px; color: #3A2A32; letter-spacing: 1px; }
 </style>
 </head>
 <body>
@@ -94,18 +127,12 @@ canvas { display:block; }
     <div id="subtitle">Collection privée · 3D</div>
   </div>
   <div id="stats">
-    <div class="stat-box">
-      <div class="stat-num" id="stat-total">0</div>
-      <div class="stat-lbl">Bouteilles</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-num">84</div>
-      <div class="stat-lbl">Capacité</div>
-    </div>
+    <div class="stat-box"><div class="stat-num" id="stat-total">0</div><div class="stat-lbl">Bouteilles</div></div>
+    <div class="stat-box"><div class="stat-num">84</div><div class="stat-lbl">Capacité</div></div>
   </div>
 </div>
 
-<div id="hint" id="hint">☞ Ouvrir la porte pour déplacer les clayettes</div>
+<div id="hint">☞ Ouvrir la porte pour déplacer les clayettes</div>
 
 <div id="light-wrap">
   <button id="btn-light" onclick="toggleLight()" title="Lumière intérieure">
@@ -129,15 +156,30 @@ canvas { display:block; }
   <button class="ctrl-btn" id="btn-side" onclick="setView('side')">Côté</button>
 </div>
 
+<!-- ── SHELF 3D OVERLAY ──────────────────────────────────────────────────── -->
+<div id="shelf-overlay">
+  <canvas id="shelf-canvas"></canvas>
+  <div id="shelf-topbar">
+    <div>
+      <div id="shelf-title">Clayette nº<span id="shelf-num">1</span></div>
+      <div id="shelf-subtitle">12 emplacements</div>
+    </div>
+    <button id="btn-close-shelf" onclick="closeShelfView()">✕</button>
+  </div>
+  <div id="shelf-bottombar">
+    <div id="shelf-count"><span id="fill-count">0</span> / 12 emplacements occupés</div>
+    <div id="shelf-hint">☞ Glisser pour pivoter</div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// ─── Scene ───────────────────────────────────────────────────────────────────
+// ─── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
-// Background handled by CSS radial gradient
 scene.fog = new THREE.FogExp2(0x1A0810, 0.032);
 
 const camera = new THREE.PerspectiveCamera(36, innerWidth/innerHeight, 0.01, 80);
-camera.position.set(0, 0, 8.0);
+camera.position.set(0, 0, 8.8);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
 renderer.setClearColor(0x000000, 0);
@@ -152,504 +194,491 @@ document.body.appendChild(renderer.domElement);
 
 // ─── Lights ───────────────────────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0x180810, 1.2));
-
 const sun = new THREE.DirectionalLight(0xFFF0E0, 2.2);
-sun.position.set(4, 6, 5);
-sun.castShadow = true;
+sun.position.set(4, 6, 5); sun.castShadow = true;
 sun.shadow.mapSize.set(2048,2048);
-sun.shadow.camera.near = 0.1;
-sun.shadow.camera.far = 30;
-sun.shadow.camera.left = -4; sun.shadow.camera.right = 4;
-sun.shadow.camera.top = 4;  sun.shadow.camera.bottom = -4;
-sun.shadow.bias = -0.0005;
+sun.shadow.camera.near=0.1; sun.shadow.camera.far=30;
+sun.shadow.camera.left=-4; sun.shadow.camera.right=4;
+sun.shadow.camera.top=4;   sun.shadow.camera.bottom=-4;
+sun.shadow.bias=-0.0005;
 scene.add(sun);
-
 const fill = new THREE.DirectionalLight(0x301820, 0.8);
-fill.position.set(-3, 1, -2);
-scene.add(fill);
+fill.position.set(-3,1,-2); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xC0A060, 0.85);
+rim.position.set(0,-4,3); scene.add(rim);
 
-const rim = new THREE.DirectionalLight(0xC0A060, 0.5);
-rim.position.set(0, -4, 3);
-scene.add(rim);
-
-// Interior LED warm light — inside cave (off by default)
 const ledA = new THREE.PointLight(0xFFCC88, 0.0, 3.0);
-ledA.position.set(0, 0.6, 0.5);
-scene.add(ledA);
+ledA.position.set(0, 0.6, 0.5); scene.add(ledA);
 const ledB = new THREE.PointLight(0xFFBB66, 0.0, 2.0);
-ledB.position.set(0, -0.8, 0.5);
-scene.add(ledB);
-// ledTop added after dimensions are defined below
+ledB.position.set(0, -0.8, 0.5); scene.add(ledB);
 
-// ─── Dimensions (real: 497×585×1270mm, scale: 1u=497mm) ───────────────────────
-const CW = 1.0;
-const CD = 1.178;  // 585/497
-const CH = 2.556;  // 1270/497
-const WT = 0.055;  // frame thickness (real ~25mm)
-const iW = CW - 2*WT;
-const iD = CD - 2*WT;
-const iH = CH - 2*WT;
+// ─── Dimensions ───────────────────────────────────────────────────────────────
+const CW=1.0, CD=1.178, CH=2.556, WT=0.055;
+const iW=CW-2*WT, iD=CD-2*WT, iH=CH-2*WT;
 
-// Top LED strip (needs CH — placed here after dimensions)
 const ledTop = new THREE.PointLight(0xFFDDA0, 0.0, 4.0);
-ledTop.position.set(0, CH/2 - WT - 0.12, 0.2);
-scene.add(ledTop);
+ledTop.position.set(0, CH/2-WT-0.12, 0.2); scene.add(ledTop);
 
-// ─── Materials ─────────────────────────────────────────────────────────────────
-// Outer frame: black gloss (like the real photos)
-const matFrame = new THREE.MeshStandardMaterial({
-  color:0x080608, roughness:0.08, metalness:0.75,
-  envMapIntensity:1.0
-});
-// Inner cavity: very dark matte black
-const matInner = new THREE.MeshStandardMaterial({
-  color:0x070507, roughness:0.85, metalness:0.0
-});
-// Wood shelves: warm honey/rosé color as seen in photos
-const matWood = new THREE.MeshStandardMaterial({
-  color:0xC8906A, roughness:0.75, metalness:0.0
-});
-// Wood edge label strip (slightly lighter)
-const matWoodEdge = new THREE.MeshStandardMaterial({
-  color:0xE0AA80, roughness:0.6, metalness:0.05
-});
-// Glass door: dark tinted, semi-transparent
-const matGlass = new THREE.MeshStandardMaterial({
-  color:0x182028, roughness:0.03, metalness:0.15,
-  transparent:true, opacity:0.30, side:THREE.DoubleSide
-});
-// Glass door tint layer (more reflective)
-const matGlassRefl = new THREE.MeshStandardMaterial({
-  color:0x101820, roughness:0.02, metalness:0.4,
-  transparent:true, opacity:0.15, side:THREE.FrontSide
-});
-// Display panel: matte black with subtle texture
-const matPanel = new THREE.MeshStandardMaterial({
-  color:0x0A0710, roughness:0.45, metalness:0.3
-});
-// Display screen (blue glow)
-const matScreen = new THREE.MeshStandardMaterial({
-  color:0x001830, roughness:0.3, metalness:0.5,
-  emissive:0x004488, emissiveIntensity:0.9
-});
-// Haier logo text area on glass
-const matLogoArea = new THREE.MeshStandardMaterial({
-  color:0xCCBBAA, roughness:0.5, metalness:0.2,
-  transparent:true, opacity:0.7
-});
-// Lock dot (gold)
-const matGold = new THREE.MeshStandardMaterial({
-  color:0xB8952A, roughness:0.2, metalness:0.9
-});
-// Shelf label strip (label names on wood edges)
-const matLabel = new THREE.MeshStandardMaterial({
-  color:0xF5EEDD, roughness:0.9, metalness:0.0
-});
-
-// ─── Cave group ────────────────────────────────────────────────────────────────
-const caveGroup = new THREE.Group();
-scene.add(caveGroup);
-
-function addMesh(geo, mat, x=0, y=0, z=0, rx=0, ry=0, rz=0, shadows=true) {
-  const m = new THREE.Mesh(geo, mat);
-  m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
-  if(shadows){ m.castShadow=true; m.receiveShadow=true; }
-  caveGroup.add(m); return m;
-}
-function box(w,h,d, mat, x=0,y=0,z=0, rx=0,ry=0,rz=0, sh=true) {
-  return addMesh(new THREE.BoxGeometry(w,h,d), mat, x,y,z, rx,ry,rz, sh);
-}
-function cyl(rt,rb,h, mat, x=0,y=0,z=0, rx=0,ry=0,rz=0, seg=16) {
-  return addMesh(new THREE.CylinderGeometry(rt,rb,h,seg), mat, x,y,z, rx,ry,rz);
-}
-
-// ── OUTER FRAME SHELL ─────────────────────────────────────────────────────────
-// Back wall
-box(CW, CH, WT,   matFrame, 0,  0, -(CD/2-WT/2));
-// Left wall
-box(WT, CH, CD,   matFrame, -(CW/2-WT/2), 0, 0);
-// Right wall
-box(WT, CH, CD,   matFrame,  (CW/2-WT/2), 0, 0);
-// Top
-box(CW, WT, CD,   matFrame, 0,  CH/2-WT/2, 0);
-// Bottom
-box(CW, WT, CD,   matFrame, 0, -CH/2+WT/2, 0);
-
-// Frame rounded look: thin front edge strips (creates "frame" border on front face)
-const FRTW = 0.028; // front trim width
-// Top front trim
-box(CW, FRTW, FRTW, matFrame, 0,  CH/2-FRTW/2, CD/2-FRTW/2);
-// Bottom front trim
-box(CW, FRTW, FRTW, matFrame, 0, -CH/2+FRTW/2, CD/2-FRTW/2);
-// Left front trim
-box(FRTW, CH, FRTW, matFrame, -(CW/2-FRTW/2), 0, CD/2-FRTW/2);
-// Right front trim
-box(FRTW, CH, FRTW, matFrame,  (CW/2-FRTW/2), 0, CD/2-FRTW/2);
-
-// ── INNER CAVITY ──────────────────────────────────────────────────────────────
-// Inner back
-box(iW, iH, 0.01, matInner, 0, 0, -(CD/2-WT));
-// Inner left
-box(0.01, iH, iD, matInner, -(CW/2-WT), 0, 0);
-// Inner right
-box(0.01, iH, iD, matInner,  (CW/2-WT), 0, 0);
-// Inner top
-box(iW, 0.01, iD, matInner, 0,  CH/2-WT, 0);
-// Inner bottom
-box(iW, 0.01, iD, matInner, 0, -CH/2+WT, 0);
-
-// ── CONTROL PANEL (top, slightly recessed) ────────────────────────────────────
-const PNLH = 0.095;
-const pnlY = CH/2 - PNLH/2;
-const pnlZ = CD/2 - 0.005;
-
-box(CW - 2*FRTW, PNLH, 0.008, matPanel, 0, pnlY, pnlZ);
-
-// Display area (blue glow, left-center as in photo)
-box(0.30, 0.042, 0.003, matScreen, -0.08, pnlY, pnlZ+0.005);
-
-// Touch icons (small raised dots/rectangles)
-const iconW = 0.025, iconH = 0.018, iconD = 0.003;
-const iconY = pnlY, iconZ = pnlZ + 0.004;
-const iconMat = new THREE.MeshStandardMaterial({ color:0x334466, roughness:0.4, metalness:0.5, emissive:0x112244, emissiveIntensity:0.5 });
-[-0.38, -0.30, 0.18, 0.26, 0.34].forEach(ix => {
-  box(iconW, iconH, iconD, iconMat, ix, iconY, iconZ);
-});
-
-// ── 7 WOODEN SHELVES — draggable groups ──────────────────────────────────────
-const usableTop = CH/2 - WT - PNLH;
-const usableBot = -CH/2 + WT;
-const usableH   = usableTop - usableBot;
-
-const SHELF_COUNT = 7;
-const shelfSpacing = usableH / (SHELF_COUNT + 0.5);
-
-const shelfW   = iW - 0.06;
-const shelfD3  = iD - 0.14;
-const slatH    = 0.016;
-const slatSec  = 0.015;
-const SLAT_COUNT = 10;
-const slatSpacing = shelfW / SLAT_COUNT;
-
-const backZ   = -(CD/2 - WT) + 0.05;
-const frontZ2 = backZ + shelfD3;
-const midZ    = backZ + shelfD3/2;
-
-// Materials for selected state
-const matWoodSel     = new THREE.MeshStandardMaterial({ color:0xFFD070, roughness:0.5, metalness:0.1 });
+// ─── Materials ────────────────────────────────────────────────────────────────
+const matFrame    = new THREE.MeshStandardMaterial({ color:0x080608, roughness:0.08, metalness:0.75 });
+const matInner    = new THREE.MeshStandardMaterial({ color:0x14101A, roughness:0.7, metalness:0.05 });
+const matWood     = new THREE.MeshStandardMaterial({ color:0xC8906A, roughness:0.75, metalness:0.0 });
+const matWoodEdge = new THREE.MeshStandardMaterial({ color:0xE0AA80, roughness:0.6,  metalness:0.05 });
+const matGlass    = new THREE.MeshStandardMaterial({ color:0x182028, roughness:0.15, metalness:0.05, transparent:true, opacity:0.22, side:THREE.DoubleSide, depthWrite:false });
+const matGlassRefl= new THREE.MeshStandardMaterial({ color:0x101820, roughness:0.25, metalness:0.05, transparent:true, opacity:0.08, side:THREE.FrontSide, depthWrite:false });
+const matPanel    = new THREE.MeshStandardMaterial({ color:0x0A0710, roughness:0.45, metalness:0.3 });
+const matScreen   = new THREE.MeshStandardMaterial({ color:0x001830, roughness:0.3,  metalness:0.5,  emissive:0x004488, emissiveIntensity:0.9 });
+const matGold     = new THREE.MeshStandardMaterial({ color:0xB8952A, roughness:0.2,  metalness:0.9 });
+const matLabel    = new THREE.MeshStandardMaterial({ color:0xF5EEDD, roughness:0.9,  metalness:0.0 });
+const matWoodSel  = new THREE.MeshStandardMaterial({ color:0xFFD070, roughness:0.5,  metalness:0.1 });
 const matWoodEdgeSel = new THREE.MeshStandardMaterial({ color:0xFFE090, roughness:0.4, metalness:0.15 });
 
-// Each shelf = one Group parented to caveGroup
-const shelfGroups = [];  // { group, targetY, currentY, meshes[] }
+// ─── Cave group ───────────────────────────────────────────────────────────────
+const caveGroup = new THREE.Group();
+caveGroup.scale.set(1.32, 1.32, 1.32);  // bigger cave on home page
+scene.add(caveGroup);
 
-function buildShelf(sy) {
-  const g = new THREE.Group();
-  g.position.set(0, sy, 0);
+function box(w,h,d,mat,x=0,y=0,z=0,rx=0,ry=0,rz=0,sh=true){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
+  if(sh){m.castShadow=true;m.receiveShadow=true;}
+  caveGroup.add(m); return m;
+}
+
+// Outer shell
+box(CW,CH,WT,   matFrame, 0,0,-(CD/2-WT/2));
+box(WT,CH,CD,   matFrame, -(CW/2-WT/2),0,0);
+box(WT,CH,CD,   matFrame,  (CW/2-WT/2),0,0);
+box(CW,WT,CD,   matFrame, 0, CH/2-WT/2,0);
+box(CW,WT,CD,   matFrame, 0,-CH/2+WT/2,0);
+const FRTW=0.028;
+box(CW,FRTW,FRTW,matFrame,0, CH/2-FRTW/2,CD/2-FRTW/2);
+box(CW,FRTW,FRTW,matFrame,0,-CH/2+FRTW/2,CD/2-FRTW/2);
+box(FRTW,CH,FRTW,matFrame,-(CW/2-FRTW/2),0,CD/2-FRTW/2);
+box(FRTW,CH,FRTW,matFrame, (CW/2-FRTW/2),0,CD/2-FRTW/2);
+// Inner cavity
+box(iW,iH,0.01,matInner,0,0,-(CD/2-WT));
+box(0.01,iH,iD,matInner,-(CW/2-WT),0,0);
+box(0.01,iH,iD,matInner, (CW/2-WT),0,0);
+box(iW,0.01,iD,matInner,0, CH/2-WT,0);
+box(iW,0.02,iD,matInner,0,-CH/2+WT+0.025,0);
+// Control panel
+const PNLH=0.095, pnlY=CH/2-PNLH/2, pnlZ=CD/2-0.005;
+box(CW-2*FRTW,PNLH,0.008,matPanel,0,pnlY,pnlZ);
+box(0.30,0.042,0.003,matScreen,-0.08,pnlY,pnlZ+0.005);
+const iconMat=new THREE.MeshStandardMaterial({color:0x334466,roughness:0.4,metalness:0.5,emissive:0x112244,emissiveIntensity:0.5});
+[-0.38,-0.30,0.18,0.26,0.34].forEach(ix=>box(0.025,0.018,0.003,iconMat,ix,pnlY,pnlZ+0.004));
+
+// ─── Shelves ──────────────────────────────────────────────────────────────────
+const usableTop = CH/2-WT-PNLH;
+const usableBot = -CH/2+WT;
+const usableH   = usableTop-usableBot;
+const SHELF_COUNT=7;
+const shelfSpacing = usableH/SHELF_COUNT;
+const shelfW=iW-0.06, shelfD3=iD-0.14;
+const slatH=0.016, slatSec=0.015;
+const SLAT_COUNT=10, slatSpacing=shelfW/SLAT_COUNT;
+const backZ=-(CD/2-WT)+0.05, frontZ2=backZ+shelfD3, midZ=backZ+shelfD3/2;
+
+const shelfGroups=[];
+// Shelf data: bottles per shelf (max 12)
+const shelfData = Array.from({length:SHELF_COUNT}, (_,i)=>({
+  index: i,
+  label: `Clayette nº${i+1}`,
+  bottles: Array(12).fill(null)
+}));
+
+// Wine stock — synced with the management app
+const WINES_STOCK = [
+  { name:'Château Margaux', vintage:'2018', type:'rouge', parker:98, suckling:97, quantity:3 }
+];
+// Pre-fill shelves from stock
+let _slot=0;
+WINES_STOCK.forEach(w=>{
+  for(let q=0;q<w.quantity;q++){
+    const si=Math.floor(_slot/12), bi=_slot%12;
+    if(si<shelfData.length) shelfData[si].bottles[bi]={name:w.name,vintage:w.vintage,type:w.type,parker:w.parker,suckling:w.suckling};
+    _slot++;
+  }
+});
+
+function buildShelf(sy, idx){
+  const g=new THREE.Group();
+  g.position.set(0,sy,0);
   caveGroup.add(g);
-
-  const meshes = [];
-
-  function lbox(w,h,d,mat,x=0,y=0,z=0) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
-    m.position.set(x,y,z);
-    m.castShadow = true; m.receiveShadow = true;
+  const meshes=[];
+  function lbox(w,h,d,mat,x=0,y=0,z=0){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+    m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true;
     g.add(m); meshes.push(m); return m;
   }
-
-  // Front + back rails
-  lbox(shelfW, slatSec, slatSec, matWoodEdge, 0, 0, frontZ2 - slatSec/2);
-  lbox(shelfW, slatSec, slatSec, matWoodEdge, 0, 0, backZ   + slatSec/2);
-
-  // Slats (vertical, across width)
-  for(let s=0; s<SLAT_COUNT; s++){
-    const sx = -shelfW/2 + slatSpacing/2 + s * slatSpacing;
-    lbox(slatSec, slatH, shelfD3, matWood, sx, 0, midZ);
+  lbox(shelfW,slatSec,slatSec,matWoodEdge,0,0,frontZ2-slatSec/2);
+  lbox(shelfW,slatSec,slatSec,matWoodEdge,0,0,backZ+slatSec/2);
+  for(let s=0;s<SLAT_COUNT;s++){
+    const sx=-shelfW/2+slatSpacing/2+s*slatSpacing;
+    lbox(slatSec,slatH,shelfD3,matWood,sx,0,midZ);
   }
-
-  // Front label rail
-  const railH = 0.036;
-  lbox(shelfW, railH, 0.013, matWoodEdge, 0, slatH/2 + railH/2, frontZ2 + 0.009);
-  lbox(shelfW * 0.5, railH * 0.48, 0.001, matLabel, 0, slatH/2 + railH/2, frontZ2 + 0.016);
-
-  return { group: g, targetY: sy, currentY: sy, meshes, selected: false };
+  const railH=0.036;
+  lbox(shelfW,railH,0.013,matWoodEdge,0,slatH/2+railH/2,frontZ2+0.009);
+  lbox(shelfW*0.5,railH*0.48,0.001,matLabel,0,slatH/2+railH/2,frontZ2+0.016);
+  return {group:g, targetY:sy, currentY:sy, meshes, selected:false, index:idx};
 }
 
-for(let i=0; i<SHELF_COUNT; i++){
-  const sy = usableBot + shelfSpacing * (i + 0.8);
-  shelfGroups.push(buildShelf(sy));
-}
-
-// Highlight / unhighlight a shelf
-function highlightShelf(sh, on) {
-  sh.selected = on;
-  sh.meshes.forEach(m => {
-    if(m.geometry.parameters && m.geometry.parameters.width === shelfW * 0.5) return; // label paper
-    if(on) {
-      m.userData.origMat = m.material;
-      m.material = m.material === matWood ? matWoodSel : matWoodEdgeSel;
-    } else {
-      if(m.userData.origMat) m.material = m.userData.origMat;
-    }
+function highlightShelf(sh,on){
+  sh.selected=on;
+  sh.meshes.forEach(m=>{
+    if(on){ m.userData.origMat=m.material; m.material=m.material===matWood?matWoodSel:m.material===matWoodEdge?matWoodEdgeSel:m.material; }
+    else  { if(m.userData.origMat) m.material=m.userData.origMat; }
   });
 }
 
-// ── DOOR GROUP (pivots on left hinge) ─────────────────────────────────────────
-const doorGroup = new THREE.Group();
-// Pivot at left edge of front face
-doorGroup.position.set(-CW/2, 0, CD/2);
+for(let i=0;i<SHELF_COUNT;i++){
+  const sy=usableBot+shelfSpacing*(i+0.5);
+  shelfGroups.push(buildShelf(sy,i));
+}
+
+// ─── Door ─────────────────────────────────────────────────────────────────────
+const doorGroup=new THREE.Group();
+doorGroup.position.set(-CW/2,0,CD/2);
 caveGroup.add(doorGroup);
+const doorH=CH-PNLH, doorY=-PNLH/2, DB=0.04;
 
-const doorH = CH - PNLH;
-const doorY = -PNLH/2;
+function dbox(w,h,d,mat,x,y,z){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(x,y,z); m.castShadow=true; doorGroup.add(m);
+}
+dbox(CW,DB,0.028,matFrame, CW/2, doorY+doorH/2-DB/2, 0);
+dbox(CW,DB,0.028,matFrame, CW/2, doorY-doorH/2+DB/2, 0);
+dbox(DB,doorH,0.028,matFrame, DB/2, doorY, 0);
+dbox(DB,doorH,0.028,matFrame, CW-DB/2, doorY, 0);
+const glassW=CW-2*DB, glassH=doorH-2*DB;
+const glass1=new THREE.Mesh(new THREE.BoxGeometry(glassW,glassH,0.012),matGlass);
+glass1.position.set(CW/2,doorY,0.002); doorGroup.add(glass1);
+const glass2=new THREE.Mesh(new THREE.BoxGeometry(glassW,glassH,0.002),matGlassRefl);
+glass2.position.set(CW/2,doorY,0.008); doorGroup.add(glass2);
+const logoMat=new THREE.MeshStandardMaterial({color:0xDDCCBB,roughness:0.3,metalness:0.4,transparent:true,opacity:0.55});
+const logoMesh=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.028,0.001),logoMat);
+logoMesh.position.set(CW/2,doorY+doorH/2-DB-0.06,0.014); doorGroup.add(logoMesh);
+const lock=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.008,12),matGold);
+lock.rotation.x=Math.PI/2; lock.position.set(CW/2,doorY-doorH/2+0.06,0.016); doorGroup.add(lock);
 
-// Door frame border (black gloss, thicker border as in photo)
-const DB = 0.04; // door border thickness
-
-// Door top bar
-const dtop = new THREE.Mesh(new THREE.BoxGeometry(CW, DB, 0.028), matFrame);
-dtop.position.set(CW/2, doorY + doorH/2 - DB/2, 0);
-dtop.castShadow=true; doorGroup.add(dtop);
-
-// Door bottom bar
-const dbot = new THREE.Mesh(new THREE.BoxGeometry(CW, DB, 0.028), matFrame);
-dbot.position.set(CW/2, doorY - doorH/2 + DB/2, 0);
-dbot.castShadow=true; doorGroup.add(dbot);
-
-// Door left bar
-const dleft = new THREE.Mesh(new THREE.BoxGeometry(DB, doorH, 0.028), matFrame);
-dleft.position.set(DB/2, doorY, 0);
-dleft.castShadow=true; doorGroup.add(dleft);
-
-// Door right bar
-const dright = new THREE.Mesh(new THREE.BoxGeometry(DB, doorH, 0.028), matFrame);
-dright.position.set(CW - DB/2, doorY, 0);
-dright.castShadow=true; doorGroup.add(dright);
-
-// Glass pane (main)
-const glassW = CW - 2*DB;
-const glassH = doorH - 2*DB;
-const glass1 = new THREE.Mesh(new THREE.BoxGeometry(glassW, glassH, 0.012), matGlass);
-glass1.position.set(CW/2, doorY, 0.002);
-doorGroup.add(glass1);
-
-// Glass reflection layer (front)
-const glass2 = new THREE.Mesh(new THREE.BoxGeometry(glassW, glassH, 0.002), matGlassRefl);
-glass2.position.set(CW/2, doorY, 0.008);
-doorGroup.add(glass2);
-
-// Haier logo on glass (subtle raised text plane)
-const logoMat = new THREE.MeshStandardMaterial({
-  color:0xDDCCBB, roughness:0.3, metalness:0.4,
-  transparent:true, opacity:0.55
-});
-const logoMesh = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.028, 0.001), logoMat);
-logoMesh.position.set(CW/2, doorY + doorH/2 - DB - 0.06, 0.014);
-doorGroup.add(logoMesh);
-
-// ── LOCK (bottom center, small gold cylinder) ──────────────────────────────────
-const lock = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.008,12), matGold);
-lock.rotation.x = Math.PI/2;
-lock.position.set(CW/2, doorY - doorH/2 + 0.06, 0.016);
-doorGroup.add(lock);
-
-// Lock keyhole slot
-const slotMat = new THREE.MeshStandardMaterial({ color:0x111111, roughness:1.0 });
-const slot = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.010, 0.002), slotMat);
-slot.position.set(CW/2, doorY - doorH/2 + 0.06, 0.020);
-doorGroup.add(slot);
-
-// ── FLOOR SHADOW CATCHER ──────────────────────────────────────────────────────
-const floorMat = new THREE.ShadowMaterial({ opacity:0.5 });
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(10,10), floorMat);
-floor.rotation.x = -Math.PI/2;
-floor.position.y = -CH/2 - 0.01;
-floor.receiveShadow = true;
-scene.add(floor);
+// ─── Floor ────────────────────────────────────────────────────────────────────
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(10,10),new THREE.ShadowMaterial({opacity:0.5}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-CH/2-0.01; floor.receiveShadow=true; scene.add(floor);
 
 // ─── Raycaster ────────────────────────────────────────────────────────────────
-const raycaster = new THREE.Raycaster();
-const mouse2d   = new THREE.Vector2();
+const raycaster=new THREE.Raycaster();
+const mouse2d=new THREE.Vector2();
 
-function getMouseNDC(clientX, clientY){
-  mouse2d.x = (clientX / innerWidth)  *  2 - 1;
-  mouse2d.y = (clientY / innerHeight) * -2 + 1;
-}
-
-function pickShelf(clientX, clientY){
-  getMouseNDC(clientX, clientY);
-  raycaster.setFromCamera(mouse2d, camera);
-  const allMeshes = shelfGroups.flatMap(s => s.meshes);
-  const hits = raycaster.intersectObjects(allMeshes, false);
+function pickShelf(clientX,clientY){
+  mouse2d.x=(clientX/innerWidth)*2-1;
+  mouse2d.y=-(clientY/innerHeight)*2+1;
+  raycaster.setFromCamera(mouse2d,camera);
+  const allMeshes=shelfGroups.flatMap(s=>s.meshes);
+  const hits=raycaster.intersectObjects(allMeshes,false);
   if(!hits.length) return null;
-  const hitMesh = hits[0].object;
-  return shelfGroups.find(s => s.meshes.includes(hitMesh)) || null;
+  const hitMesh=hits[0].object;
+  return shelfGroups.find(s=>s.meshes.includes(hitMesh))||null;
 }
 
-// ─── Orbit + Shelf drag ───────────────────────────────────────────────────────
+// ─── Shelf zoom overlay ───────────────────────────────────────────────────────
+let shelfViewOpen=false;
+let currentShelfData=null;
+
+// ── Mini Three.js scene for shelf 3D view ─────────────────────────────────────
+let sRenderer=null, sScene=null, sCamera=null, sAnimId=null;
+let sDrag=false, sPx=0, sPy=0;
+let sRotX=-0.3, sRotY=0.5, sTRotX=-0.3, sTRotY=0.5;
+let sGroup=null;
+
+const BCOLS3={rouge:0x1A0608, blanc:0x182A18, rosé:0x1E0C14, pétillant:0x0A1020};
+const CCOLS3={rouge:0x7A1020, blanc:0xB09018, rosé:0xB06070, pétillant:0x203080};
+
+function initShelfRenderer(){
+  const canvas=document.getElementById('shelf-canvas');
+  sRenderer=new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  sRenderer.setClearColor(0x000000,0);
+  sRenderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  sRenderer.shadowMap.enabled=true;
+  sRenderer.outputEncoding=THREE.sRGBEncoding;
+  sRenderer.toneMapping=THREE.ACESFilmicToneMapping;
+  sRenderer.toneMappingExposure=1.1;
+
+  sScene=new THREE.Scene();
+  sScene.fog=new THREE.FogExp2(0x0A0608,0.08);
+
+  sCamera=new THREE.PerspectiveCamera(36, innerWidth/innerHeight, 0.01, 40);
+  sCamera.position.set(0,0,7.9);
+
+  sScene.add(new THREE.AmbientLight(0x201018,1.2));
+  const sl1=new THREE.DirectionalLight(0xFFE8C0,2.5); sl1.position.set(3,5,4); sl1.castShadow=true; sScene.add(sl1);
+  const sl2=new THREE.DirectionalLight(0x401828,0.8); sl2.position.set(-3,0,-2); sScene.add(sl2);
+  const sl3=new THREE.DirectionalLight(0xC0A060,0.5); sl3.position.set(0,-3,2); sScene.add(sl3);
+  // Warm light from above (LED effect)
+  const led=new THREE.PointLight(0xFFCC88,1.2,6); led.position.set(0,2,1); sScene.add(led);
+
+  // Drag to rotate
+  canvas.addEventListener('mousedown',  e=>{sDrag=true;sPx=e.clientX;sPy=e.clientY;});
+  canvas.addEventListener('touchstart', e=>{sDrag=true;sPx=e.touches[0].clientX;sPy=e.touches[0].clientY;},{passive:true});
+  window.addEventListener('mouseup',  ()=>sDrag=false);
+  window.addEventListener('touchend', ()=>sDrag=false);
+  window.addEventListener('mousemove', e=>{
+    if(!sDrag||!shelfViewOpen) return;
+    sTRotY+=(e.clientX-sPx)*0.009; sTRotX+=(e.clientY-sPy)*0.009;
+    sTRotX=Math.max(-0.8,Math.min(0.8,sTRotX));
+    sPx=e.clientX; sPy=e.clientY;
+  });
+  window.addEventListener('touchmove', e=>{
+    if(!sDrag||!shelfViewOpen) return;
+    sTRotY+=(e.touches[0].clientX-sPx)*0.009; sTRotX+=(e.touches[0].clientY-sPy)*0.009;
+    sTRotX=Math.max(-0.8,Math.min(0.8,sTRotX));
+    sPx=e.touches[0].clientX; sPy=e.touches[0].clientY;
+  },{passive:true});
+}
+
+function buildShelf3D(data){
+  if(sGroup){ sScene.remove(sGroup); }
+  sGroup=new THREE.Group();
+  sScene.add(sGroup);
+
+  // Real Haier shelf: 460mm wide × 530mm deep → scale 1u=497mm
+  // SW=0.926, SD=1.066 → upscale ×2.4 for display
+  const SCALE3=2.4;
+  const SW=0.926*SCALE3, SD=1.066*SCALE3, slatSec2=0.05*SCALE3, slatH2=0.04*SCALE3;
+  const SLATS=10, gap=SW/SLATS;
+  const bkZ=-SD/2, frZ=SD/2;
+
+  const mWood=new THREE.MeshStandardMaterial({color:0xC8906A,roughness:0.7,metalness:0.0});
+  const mEdge=new THREE.MeshStandardMaterial({color:0xE0AA80,roughness:0.55,metalness:0.05});
+  const mLbl =new THREE.MeshStandardMaterial({color:0xF5EEDD,roughness:0.9});
+
+  function sb(w,h,d,mat,x=0,y=0,z=0){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+    m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true;
+    sGroup.add(m);
+  }
+
+  // Front + back rails
+  sb(SW,slatSec2,slatSec2,mEdge, 0,0,frZ-slatSec2/2);
+  sb(SW,slatSec2,slatSec2,mEdge, 0,0,bkZ+slatSec2/2);
+  // Left + right side rails
+  sb(slatSec2,slatH2,SD,mEdge, -SW/2+slatSec2/2,0,0);
+  sb(slatSec2,slatH2,SD,mEdge,  SW/2-slatSec2/2,0,0);
+  // Slats
+  for(let s=0;s<SLATS;s++){
+    const sx=-SW/2+gap/2+s*gap;
+    sb(slatSec2,slatH2,SD,mWood,sx,0,0);
+  }
+  // Front label rail
+  sb(SW,0.12,0.05,mEdge, 0,slatH2/2+0.06,frZ+0.03);
+  sb(SW*0.4,0.06,0.004,mLbl, 0,slatH2/2+0.06,frZ+0.056);
+
+  // Bottles — laid horizontally on the shelf
+  const COLS=6, ROWS=2;
+  const bSpX=SW/COLS;
+  let filled=0;
+  const BSCALE=SCALE3*0.9; // bottle scale relative to shelf
+
+  for(let row=0;row<ROWS;row++){
+    for(let col=0;col<COLS;col++){
+      const idx=row*COLS+col;
+      const b=data.bottles[idx]||null;
+      const bx=-SW/2+bSpX/2+col*bSpX;
+      const bz=row===0 ? -SD*0.20 : SD*0.20;
+      const by=slatH2/2+0.13*BSCALE;
+
+      if(b){
+        filled++;
+        const bMat=new THREE.MeshStandardMaterial({color:BCOLS3[b.type]||0x1A0608,roughness:0.12,metalness:0.25,transparent:true,opacity:0.9});
+        const cMat=new THREE.MeshStandardMaterial({color:CCOLS3[b.type]||0x7A1020,roughness:0.3,metalness:0.6});
+        const lMat=new THREE.MeshStandardMaterial({color:0xF0E8D0,roughness:0.85});
+        const g=new THREE.Group();
+        const bs=BSCALE*0.9;
+        g.rotation.z=Math.PI/2;
+        g.position.set(bx,by,bz);
+        const body=new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,14),bMat); body.castShadow=true; g.add(body);
+        const sho=new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,14),bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
+        const nk=new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,12),bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
+        const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,12),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
+        const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.12*bs,14,1,true,-1.3,2.6);
+        const lbl=new THREE.Mesh(lblGeo,lMat); lbl.position.y=-0.02*bs; g.add(lbl);
+        sGroup.add(g);
+      } else {
+        // Empty slot — subtle flat oval outline resting on the shelf, not a 3D bottle
+        const bs2=BSCALE*0.9;
+        const ringMat=new THREE.MeshStandardMaterial({
+          color:0x4A3540, roughness:1.0, metalness:0.0,
+          transparent:true, opacity:0.22, side:THREE.DoubleSide
+        });
+        const ringGeo=new THREE.RingGeometry(0.05*bs2, 0.062*bs2, 24);
+        const ring=new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x=-Math.PI/2;
+        ring.position.set(bx, slatH2/2+0.002, bz);
+        ring.castShadow=false; ring.receiveShadow=false;
+        sGroup.add(ring);
+      }
+    }
+  }
+  document.getElementById('fill-count').textContent=filled;
+}
+
+function animateShelf(){
+  sAnimId=requestAnimationFrame(animateShelf);
+  sRotX+=(sTRotX-sRotX)*0.08;
+  sRotY+=(sTRotY-sRotY)*0.08;
+  if(sGroup){sGroup.rotation.x=sRotX;sGroup.rotation.y=sRotY;}
+  sRenderer.setSize(innerWidth,innerHeight);
+  sCamera.aspect=innerWidth/innerHeight;
+  sCamera.updateProjectionMatrix();
+  sRenderer.render(sScene,sCamera);
+}
+
+function openShelfView(shelfObj){
+  const data=shelfData[shelfObj.index];
+  currentShelfData=data;
+  shelfViewOpen=true;
+  document.getElementById('shelf-num').textContent=shelfObj.index+1;
+  document.getElementById('shelf-subtitle').textContent=data.label+' · 12 emplacements';
+  if(!sRenderer) initShelfRenderer();
+  sRotX=-0.25; sRotY=0.4; sTRotX=-0.25; sTRotY=0.4;
+  buildShelf3D(data);
+  if(sAnimId) cancelAnimationFrame(sAnimId);
+  animateShelf();
+  document.getElementById('shelf-overlay').classList.add('visible');
+  renderer.domElement.style.filter='blur(10px) brightness(0.35)';
+  document.getElementById('ui').style.filter='blur(6px) brightness(0.4)';
+  document.getElementById('controls').style.filter='blur(6px) brightness(0.4)';
+  document.getElementById('hint').style.filter='blur(6px)';
+  document.getElementById('light-wrap').style.filter='blur(6px) brightness(0.4)';
+}
+
+function closeShelfView(){
+  shelfViewOpen=false;
+  currentShelfData=null;
+  if(sAnimId){cancelAnimationFrame(sAnimId);sAnimId=null;}
+  document.getElementById('shelf-overlay').classList.remove('visible');
+  renderer.domElement.style.filter='';
+  document.getElementById('ui').style.filter='';
+  document.getElementById('controls').style.filter='';
+  document.getElementById('hint').style.filter='';
+  document.getElementById('light-wrap').style.filter='';
+}
+
+// ─── Orbit + Shelf drag + double-tap ─────────────────────────────────────────
 let drag=false, px=0, py=0;
 let rotX=0.10, rotY=0.28, tRotX=0.10, tRotY=0.28;
-let zoom=8.0, tZoom=8.0;
+let zoom=8.8, tZoom=8.8;
+let activeShelf=null, dragStartY=0, shelfStartY=0;
+let lastTapTime=0, lastTapShelf=null;
 
-let activeShelf = null;   // shelf being dragged
-let dragStartY  = 0;      // screen Y when drag started
-let shelfStartY = 0;      // shelf world Y when drag started
-let tapTimeout  = null;   // distinguish tap vs drag
-
-// How many screen pixels = 1 world unit (approximate)
 function screenToWorld(screenDY){
-  // At current zoom, field of view maps to screen height
-  const vFovRad = camera.fov * Math.PI / 180;
-  const worldH  = 2 * Math.tan(vFovRad/2) * zoom;
-  return -(screenDY / innerHeight) * worldH;
+  const vFovRad=camera.fov*Math.PI/180;
+  const worldH=2*Math.tan(vFovRad/2)*zoom;
+  return -(screenDY/innerHeight)*worldH;
 }
 
-function onPointerDown(clientX, clientY){
-  px = clientX; py = clientY;
-  drag = false;
-
-  // Try picking a shelf
-  const hit = doorOpen ? pickShelf(clientX, clientY) : null;
+function onPointerDown(clientX,clientY){
+  if(shelfViewOpen) return;
+  px=clientX; py=clientY; drag=false;
+  const hit=doorOpen?pickShelf(clientX,clientY):null;
   if(hit){
-    // Deselect previous
-    if(activeShelf && activeShelf !== hit) highlightShelf(activeShelf, false);
-    activeShelf  = hit;
-    dragStartY   = clientY;
-    shelfStartY  = hit.targetY;
-    highlightShelf(hit, true);
+    // Double-tap detection
+    const now=Date.now();
+    if(lastTapShelf===hit && now-lastTapTime<350){
+      // Double tap → open shelf view
+      openShelfView(hit);
+      lastTapTime=0; lastTapShelf=null;
+      return;
+    }
+    lastTapTime=now; lastTapShelf=hit;
+    if(activeShelf && activeShelf!==hit) highlightShelf(activeShelf,false);
+    activeShelf=hit; dragStartY=clientY; shelfStartY=hit.targetY;
+    highlightShelf(hit,true);
   } else {
-    // Clicked empty → deselect
-    if(activeShelf){ highlightShelf(activeShelf, false); activeShelf = null; }
-    drag = true;
+    if(activeShelf){highlightShelf(activeShelf,false);activeShelf=null;}
+    lastTapShelf=null;
+    drag=true;
   }
 }
 
-function onPointerMove(clientX, clientY){
-  const dx = clientX - px, dy = clientY - py;
-
+function onPointerMove(clientX,clientY){
+  if(shelfViewOpen) return;
+  const dx=clientX-px, dy=clientY-py;
   if(activeShelf){
-    // Drag shelf vertically
-    const worldDY = screenToWorld(clientY - dragStartY);
-    let newY = shelfStartY + worldDY;
-    // Clamp inside usable space
-    newY = Math.max(usableBot + 0.05, Math.min(usableTop - 0.05, newY));
-    activeShelf.targetY = newY;
+    const worldDY=screenToWorld(clientY-dragStartY);
+    let newY=shelfStartY+worldDY;
+    newY=Math.max(usableBot+0.05,Math.min(usableTop-0.05,newY));
+    activeShelf.targetY=newY;
     return;
   }
-
   if(drag){
-    tRotY += dx * 0.007; tRotX += dy * 0.007;
-    tRotX = Math.max(-0.9, Math.min(0.9, tRotX));
+    tRotY+=dx*0.007; tRotX+=dy*0.007;
+    tRotX=Math.max(-0.9,Math.min(0.9,tRotX));
   }
-  px = clientX; py = clientY;
+  px=clientX; py=clientY;
 }
 
-function onPointerUp(){
-  if(activeShelf && Math.abs(dragStartY - py) < 6){
-    // It was a tap, not a drag — keep selected but don't move
-  }
-  drag = false;
-}
+function onPointerUp(){ drag=false; }
 
-renderer.domElement.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
-renderer.domElement.addEventListener('touchstart', e => {
-  onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
-}, {passive:true});
+renderer.domElement.addEventListener('mousedown',e=>onPointerDown(e.clientX,e.clientY));
+renderer.domElement.addEventListener('touchstart',e=>onPointerDown(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+window.addEventListener('mousemove',e=>{if(drag||activeShelf)onPointerMove(e.clientX,e.clientY);});
+window.addEventListener('touchmove',e=>{onPointerMove(e.touches[0].clientX,e.touches[0].clientY);if(activeShelf)e.preventDefault();},{passive:false});
+window.addEventListener('mouseup',onPointerUp);
+window.addEventListener('touchend',onPointerUp);
+window.addEventListener('wheel',e=>{tZoom=Math.max(3.5,Math.min(14,tZoom+e.deltaY*0.006));});
 
-window.addEventListener('mousemove', e => { if(drag || activeShelf) onPointerMove(e.clientX, e.clientY); });
-window.addEventListener('touchmove', e => {
-  onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
-  if(activeShelf) e.preventDefault();
-}, {passive:false});
-
-window.addEventListener('mouseup',  onPointerUp);
-window.addEventListener('touchend', onPointerUp);
-
-window.addEventListener('wheel', e=>{tZoom = Math.max(3.5, Math.min(14, tZoom+e.deltaY*0.006));});
-
-// ─── Door animation ────────────────────────────────────────────────────────────
+// ─── Door ─────────────────────────────────────────────────────────────────────
 let doorOpen=false, doorAngle=0, tDoor=0;
 function toggleDoor(){
-  doorOpen=!doorOpen; tDoor=doorOpen ? -Math.PI*0.6 : 0;
-  document.getElementById('btn-open').textContent = doorOpen ? 'Fermer' : 'Ouvrir';
-  // Deselect any active shelf when closing
-  if(!doorOpen && activeShelf){ highlightShelf(activeShelf, false); activeShelf = null; }
-  document.getElementById('hint').textContent = doorOpen
-    ? '☞ Toucher une clayette pour la sélectionner · Glisser pour déplacer'
-    : '☞ Ouvrir la porte pour déplacer les clayettes';
+  doorOpen=!doorOpen; tDoor=doorOpen?-Math.PI*0.6:0;
+  document.getElementById('btn-open').textContent=doorOpen?'Fermer':'Ouvrir';
+  if(!doorOpen && activeShelf){highlightShelf(activeShelf,false);activeShelf=null;}
+  document.getElementById('hint').textContent=doorOpen
+    ?'☞ Toucher une clayette · Double-tap pour voir les bouteilles'
+    :'☞ Ouvrir la porte pour accéder aux clayettes';
 }
 
-// ─── Light toggle ─────────────────────────────────────────────────────────────
-let lightOn = false;
-let ledCurrent = 0.0;   // actual intensity (smoothly animated)
-let ledTarget  = 0.0;   // target intensity
-
+// ─── Light ────────────────────────────────────────────────────────────────────
+let lightOn=false, ledCurrent=0, ledTarget=0, ledT=0;
 function toggleLight(){
-  lightOn = !lightOn;
-  ledTarget = lightOn ? 1.0 : 0.0;
-  const btn = document.getElementById('btn-light');
-  const lbl = document.getElementById('light-label');
-  const svg = document.getElementById('bulb-svg');
-  if(lightOn){
-    btn.classList.add('lit');
-    lbl.classList.add('lit');
-    svg.setAttribute('stroke','#1A1000');
-  } else {
-    btn.classList.remove('lit');
-    lbl.classList.remove('lit');
-    svg.setAttribute('stroke','#4A3050');
-  }
+  lightOn=!lightOn; ledTarget=lightOn?1.0:0.0;
+  document.getElementById('btn-light').classList.toggle('lit',lightOn);
+  document.getElementById('light-label').classList.toggle('lit',lightOn);
+  document.getElementById('bulb-svg').setAttribute('stroke',lightOn?'#1A1000':'#4A3050');
 }
 
 // ─── Views ────────────────────────────────────────────────────────────────────
 function setView(v){
   document.querySelectorAll('.ctrl-btn').forEach(b=>b.classList.remove('active'));
-  if(v==='front'){ tRotX=0.06; tRotY=0.0;          tZoom=8.0;  document.getElementById('btn-front').classList.add('active'); }
-  if(v==='angle'){ tRotX=0.14; tRotY=0.55;          tZoom=8.5;  document.getElementById('btn-angle').classList.add('active'); }
-  if(v==='side'){  tRotX=0.08; tRotY=Math.PI/2;     tZoom=8.5;  document.getElementById('btn-side').classList.add('active'); }
+  if(v==='front'){tRotX=0.06;tRotY=0.0;      tZoom=8.8; document.getElementById('btn-front').classList.add('active');}
+  if(v==='angle'){tRotX=0.14;tRotY=0.55;     tZoom=9.4; document.getElementById('btn-angle').classList.add('active');}
+  if(v==='side'){ tRotX=0.08;tRotY=Math.PI/2;tZoom=9.4; document.getElementById('btn-side').classList.add('active');}
 }
 
-// ─── Render loop ───────────────────────────────────────────────────────────────
-const clock = new THREE.Clock();
-let ledT=0;
-
+// ─── Render loop ──────────────────────────────────────────────────────────────
+const clock=new THREE.Clock();
 function animate(){
   requestAnimationFrame(animate);
-  const dt = clock.getDelta();
-
-  rotX += (tRotX-rotX)*0.07;
-  rotY += (tRotY-rotY)*0.07;
-  zoom += (tZoom-zoom)*0.07;
-  caveGroup.rotation.x = rotX;
-  caveGroup.rotation.y = rotY;
-  camera.position.z = zoom;
-
-  doorAngle += (tDoor-doorAngle)*0.055;
-  doorGroup.rotation.y = doorAngle;
-
-  // Animate shelf positions smoothly
-  shelfGroups.forEach(s => {
-    s.currentY += (s.targetY - s.currentY) * 0.12;
-    s.group.position.y = s.currentY;
-  });
-
-  // LED progressive fade in/out
-  ledT += dt;
-  ledCurrent += (ledTarget - ledCurrent) * (dt * 1.8);  // smooth ~0.5s transition
-  const flicker = lightOn
-    ? ledCurrent * (1.4 + Math.sin(ledT*4.1)*0.04 + Math.sin(ledT*13.7)*0.018)
-    : ledCurrent * 1.4;
-  ledA.intensity   = flicker;
-  ledB.intensity   = flicker * 0.55;
-  ledTop.intensity = flicker * 0.7;
-
-  renderer.render(scene, camera);
+  const dt=clock.getDelta();
+  rotX+=(tRotX-rotX)*0.07; rotY+=(tRotY-rotY)*0.07; zoom+=(tZoom-zoom)*0.07;
+  caveGroup.rotation.x=rotX; caveGroup.rotation.y=rotY;
+  camera.position.z=zoom;
+  doorAngle+=(tDoor-doorAngle)*0.055;
+  doorGroup.rotation.y=doorAngle;
+  shelfGroups.forEach(s=>{s.currentY+=(s.targetY-s.currentY)*0.12;s.group.position.y=s.currentY;});
+  ledT+=dt;
+  ledCurrent+=(ledTarget-ledCurrent)*(dt*1.8);
+  const flicker=lightOn?ledCurrent*(1.4+Math.sin(ledT*4.1)*0.04+Math.sin(ledT*13.7)*0.018):ledCurrent*1.4;
+  ledA.intensity=flicker; ledB.intensity=flicker*0.55; ledTop.intensity=flicker*0.7;
+  renderer.render(scene,camera);
 }
 animate();
 
 window.addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(innerWidth,innerHeight);
 });
 </script>
 </body>
