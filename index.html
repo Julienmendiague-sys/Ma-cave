@@ -37,6 +37,61 @@ canvas { display:block; }
   position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
   display:flex; gap:8px; transition: filter 0.4s;
 }
+
+/* Floating camera button — Vivino-style, above the view controls */
+#btn-camera-wrap {
+  position: fixed;
+  bottom: 88px;
+  right: 24px;
+  z-index: 25;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+#btn-camera {
+  width: 62px; height: 62px;
+  border-radius: 31px;
+  border: none; cursor: pointer;
+  background: linear-gradient(160deg, #7A1A3A 0%, #4A0E22 100%);
+  box-shadow: 0 6px 0 #00000080, 0 12px 32px #7A1A3A60, 0 0 0 4px #080608, 0 0 0 5px #B8952A40, inset 0 1px 0 #E8D5A040;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+#btn-camera:active { transform: scale(0.94); }
+#btn-camera-label {
+  font-size: 9px; letter-spacing: 1.5px; color: #7A6570;
+  text-transform: uppercase;
+}
+
+/* Scan result overlay */
+#scan-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: flex-end; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.35s;
+}
+#scan-overlay.visible { opacity: 1; pointer-events: all; }
+#scan-backdrop {
+  position: absolute; inset: 0;
+  background: #08060890; backdrop-filter: blur(10px);
+}
+#scan-panel {
+  position: relative; z-index: 2;
+  width: min(100%, 480px);
+  max-height: 82vh; overflow-y: auto;
+  background: linear-gradient(160deg, #2E1A24 0%, #1C1018 100%);
+  border-radius: 22px 22px 0 0;
+  border-top: 1px solid #B8952A30;
+  box-shadow: 0 -8px 40px #00000090;
+  padding: 24px 22px 32px;
+  transform: translateY(100%);
+  transition: transform 0.4s cubic-bezier(.2,.8,.3,1);
+}
+#scan-overlay.visible #scan-panel { transform: translateY(0); }
+#scan-close {
+  position: absolute; top: 16px; right: 16px;
+  width: 32px; height: 32px; border-radius: 16px; border: none; cursor: pointer;
+  background: #3A2030; color: #A08090; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
 .ctrl-btn {
   padding:9px 18px; border-radius:9px; border:none; cursor:pointer;
   font-family:'Georgia',serif; font-size:12px; letter-spacing:0.8px;
@@ -54,7 +109,7 @@ canvas { display:block; }
 }
 
 #light-wrap {
-  position: fixed; bottom: 88px; right: 24px;
+  position: fixed; bottom: 88px; left: 24px;
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   z-index: 20; transition: filter 0.4s;
 }
@@ -150,10 +205,29 @@ canvas { display:block; }
 </div>
 
 <div id="controls">
-  <button class="ctrl-btn active" id="btn-front" onclick="setView('front')">Face</button>
-  <button class="ctrl-btn" id="btn-angle" onclick="setView('angle')">3/4</button>
+  <button class="ctrl-btn" id="btn-front" onclick="setView('front')">Face</button>
   <button class="ctrl-btn" id="btn-open" onclick="toggleDoor()">Ouvrir</button>
-  <button class="ctrl-btn" id="btn-side" onclick="setView('side')">Côté</button>
+</div>
+
+<!-- ── FLOATING CAMERA BUTTON ── -->
+<input id="camera-input" type="file" accept="image/*" capture="environment" style="display:none">
+<div id="btn-camera-wrap">
+  <button id="btn-camera" onclick="document.getElementById('camera-input').click()" title="Scanner une étiquette">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E8D5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+      <circle cx="12" cy="13" r="4"/>
+    </svg>
+  </button>
+  <div id="btn-camera-label">Scanner</div>
+</div>
+
+<!-- ── SCAN RESULT OVERLAY ── -->
+<div id="scan-overlay">
+  <div id="scan-backdrop" onclick="closeScanOverlay()"></div>
+  <div id="scan-panel">
+    <button id="scan-close" onclick="closeScanOverlay()">✕</button>
+    <div id="scan-body"></div>
+  </div>
 </div>
 
 <!-- ── SHELF 3D OVERLAY ──────────────────────────────────────────────────── -->
@@ -179,7 +253,7 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x1A0810, 0.032);
 
 const camera = new THREE.PerspectiveCamera(36, innerWidth/innerHeight, 0.01, 80);
-camera.position.set(0, 0, 8.8);
+camera.position.set(0, 0, 9.1);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
 renderer.setClearColor(0x000000, 0);
@@ -224,8 +298,28 @@ const matFrame    = new THREE.MeshStandardMaterial({ color:0x080608, roughness:0
 const matInner    = new THREE.MeshStandardMaterial({ color:0x14101A, roughness:0.7, metalness:0.05 });
 const matWood     = new THREE.MeshStandardMaterial({ color:0xC8906A, roughness:0.75, metalness:0.0 });
 const matWoodEdge = new THREE.MeshStandardMaterial({ color:0xE0AA80, roughness:0.6,  metalness:0.05 });
-const matGlass    = new THREE.MeshStandardMaterial({ color:0x182028, roughness:0.15, metalness:0.05, transparent:true, opacity:0.22, side:THREE.DoubleSide, depthWrite:false });
-const matGlassRefl= new THREE.MeshStandardMaterial({ color:0x101820, roughness:0.25, metalness:0.05, transparent:true, opacity:0.08, side:THREE.FrontSide, depthWrite:false });
+// Glass — layered for a richer, more premium look
+const matGlass = new THREE.MeshPhysicalMaterial({
+  color: 0x0E1822,
+  roughness: 0.12,
+  metalness: 0.0,
+  transparent: true,
+  opacity: 0.22,
+  side: THREE.DoubleSide,
+  clearcoat: 0.5,
+  clearcoatRoughness: 0.2,
+  reflectivity: 0.25,
+});
+// Soft vertical sheen — brighter near top, fading down (simulates ambient ceiling light raking across glass)
+const matGlassSheen = new THREE.MeshStandardMaterial({
+  color: 0xEAF2FF, roughness: 0.05, metalness: 0.1,
+  transparent: true, opacity: 0.05, side: THREE.FrontSide,
+});
+// Thin bright edge-highlight strip near the top (catch-light)
+const matGlassCatchlight = new THREE.MeshStandardMaterial({
+  color: 0xFFFFFF, roughness: 0.02, metalness: 0.3,
+  transparent: true, opacity: 0.14, side: THREE.FrontSide,
+});
 const matPanel    = new THREE.MeshStandardMaterial({ color:0x0A0710, roughness:0.45, metalness:0.3 });
 const matScreen   = new THREE.MeshStandardMaterial({ color:0x001830, roughness:0.3,  metalness:0.5,  emissive:0x004488, emissiveIntensity:0.9 });
 const matGold     = new THREE.MeshStandardMaterial({ color:0xB8952A, roughness:0.2,  metalness:0.9 });
@@ -235,7 +329,7 @@ const matWoodEdgeSel = new THREE.MeshStandardMaterial({ color:0xFFE090, roughnes
 
 // ─── Cave group ───────────────────────────────────────────────────────────────
 const caveGroup = new THREE.Group();
-caveGroup.scale.set(1.32, 1.32, 1.32);  // bigger cave on home page
+caveGroup.scale.set(1.26, 1.26, 1.26);  // slightly reduced for stability
 scene.add(caveGroup);
 
 function box(w,h,d,mat,x=0,y=0,z=0,rx=0,ry=0,rz=0,sh=true){
@@ -256,12 +350,13 @@ box(CW,FRTW,FRTW,matFrame,0, CH/2-FRTW/2,CD/2-FRTW/2);
 box(CW,FRTW,FRTW,matFrame,0,-CH/2+FRTW/2,CD/2-FRTW/2);
 box(FRTW,CH,FRTW,matFrame,-(CW/2-FRTW/2),0,CD/2-FRTW/2);
 box(FRTW,CH,FRTW,matFrame, (CW/2-FRTW/2),0,CD/2-FRTW/2);
-// Inner cavity
-box(iW,iH,0.01,matInner,0,0,-(CD/2-WT));
-box(0.01,iH,iD,matInner,-(CW/2-WT),0,0);
-box(0.01,iH,iD,matInner, (CW/2-WT),0,0);
-box(iW,0.01,iD,matInner,0, CH/2-WT,0);
-box(iW,0.02,iD,matInner,0,-CH/2+WT+0.025,0);
+// Inner cavity — slightly thicker and pulled inward to avoid z-fighting with outer frame
+const innerGap = 0.008;
+box(iW-2*innerGap, iH-innerGap, 0.015, matInner, 0, -innerGap/2, -(CD/2-WT-innerGap));
+box(0.015, iH-innerGap, iD-2*innerGap, matInner, -(CW/2-WT-innerGap), -innerGap/2, 0);
+box(0.015, iH-innerGap, iD-2*innerGap, matInner,  (CW/2-WT-innerGap), -innerGap/2, 0);
+box(iW-2*innerGap, 0.015, iD-2*innerGap, matInner, 0, CH/2-WT-innerGap, 0);
+box(iW-2*innerGap, 0.02, iD-2*innerGap, matInner, 0, -CH/2+WT+0.025, 0);
 // Control panel
 const PNLH=0.095, pnlY=CH/2-PNLH/2, pnlZ=CD/2-0.005;
 box(CW-2*FRTW,PNLH,0.008,matPanel,0,pnlY,pnlZ);
@@ -337,6 +432,32 @@ for(let i=0;i<SHELF_COUNT;i++){
   shelfGroups.push(buildShelf(sy,i));
 }
 
+// ─── Persistence: restore + save shelf positions (localStorage works everywhere) ──
+function loadShelfPositions(){
+  try{
+    const raw = localStorage.getItem('ma-cave-shelf-positions');
+    if(raw){
+      const saved = JSON.parse(raw);
+      saved.forEach((y, i) => {
+        if(shelfGroups[i] && typeof y === 'number'){
+          shelfGroups[i].targetY = y;
+          shelfGroups[i].currentY = y;
+          shelfGroups[i].group.position.y = y;
+        }
+      });
+    }
+  }catch(e){ /* no saved data yet, or storage unavailable */ }
+}
+
+function saveShelfPositions(){
+  try{
+    const positions = shelfGroups.map(s => s.targetY);
+    localStorage.setItem('ma-cave-shelf-positions', JSON.stringify(positions));
+  }catch(e){ /* storage unavailable, fail silently */ }
+}
+
+loadShelfPositions();
+
 // ─── Door ─────────────────────────────────────────────────────────────────────
 const doorGroup=new THREE.Group();
 doorGroup.position.set(-CW/2,0,CD/2);
@@ -352,10 +473,10 @@ dbox(CW,DB,0.028,matFrame, CW/2, doorY-doorH/2+DB/2, 0);
 dbox(DB,doorH,0.028,matFrame, DB/2, doorY, 0);
 dbox(DB,doorH,0.028,matFrame, CW-DB/2, doorY, 0);
 const glassW=CW-2*DB, glassH=doorH-2*DB;
-const glass1=new THREE.Mesh(new THREE.BoxGeometry(glassW,glassH,0.012),matGlass);
-glass1.position.set(CW/2,doorY,0.002); doorGroup.add(glass1);
-const glass2=new THREE.Mesh(new THREE.BoxGeometry(glassW,glassH,0.002),matGlassRefl);
-glass2.position.set(CW/2,doorY,0.008); doorGroup.add(glass2);
+// Base glass pane
+const glass1=new THREE.Mesh(new THREE.PlaneGeometry(glassW,glassH),matGlass);
+glass1.position.set(CW/2,doorY,0.005); glass1.renderOrder=10; doorGroup.add(glass1);
+
 const logoMat=new THREE.MeshStandardMaterial({color:0xDDCCBB,roughness:0.3,metalness:0.4,transparent:true,opacity:0.55});
 const logoMesh=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.028,0.001),logoMat);
 logoMesh.position.set(CW/2,doorY+doorH/2-DB-0.06,0.014); doorGroup.add(logoMesh);
@@ -566,14 +687,14 @@ function closeShelfView(){
 
 // ─── Orbit + Shelf drag + double-tap ─────────────────────────────────────────
 let drag=false, px=0, py=0;
-let rotX=0.10, rotY=0.28, tRotX=0.10, tRotY=0.28;
-let zoom=8.8, tZoom=8.8;
-let activeShelf=null, dragStartY=0, shelfStartY=0;
+let rotX=0.10, rotY=0.275, tRotX=0.10, tRotY=0.275;
+let zoom=9.1, tZoom=9.1;
+let activeShelf=null, dragStartY=0, shelfStartY=0, dragZoomLock=8.8;
 let lastTapTime=0, lastTapShelf=null;
 
-function screenToWorld(screenDY){
+function screenToWorld(screenDY, zoomVal){
   const vFovRad=camera.fov*Math.PI/180;
-  const worldH=2*Math.tan(vFovRad/2)*zoom;
+  const worldH=2*Math.tan(vFovRad/2)*zoomVal;
   return -(screenDY/innerHeight)*worldH;
 }
 
@@ -592,7 +713,7 @@ function onPointerDown(clientX,clientY){
     }
     lastTapTime=now; lastTapShelf=hit;
     if(activeShelf && activeShelf!==hit) highlightShelf(activeShelf,false);
-    activeShelf=hit; dragStartY=clientY; shelfStartY=hit.targetY;
+    activeShelf=hit; dragStartY=clientY; shelfStartY=hit.targetY; dragZoomLock=zoom;
     highlightShelf(hit,true);
   } else {
     if(activeShelf){highlightShelf(activeShelf,false);activeShelf=null;}
@@ -605,10 +726,14 @@ function onPointerMove(clientX,clientY){
   if(shelfViewOpen) return;
   const dx=clientX-px, dy=clientY-py;
   if(activeShelf){
-    const worldDY=screenToWorld(clientY-dragStartY);
-    let newY=shelfStartY+worldDY;
-    newY=Math.max(usableBot+0.05,Math.min(usableTop-0.05,newY));
-    activeShelf.targetY=newY;
+    const totalDY = clientY - dragStartY;
+    if(Math.abs(totalDY) >= 3){
+      const worldDY=screenToWorld(totalDY, dragZoomLock);
+      let newY=shelfStartY+worldDY;
+      newY=Math.max(usableBot+0.05,Math.min(usableTop-0.05,newY));
+      activeShelf.targetY=newY;
+    }
+    px=clientX; py=clientY;
     return;
   }
   if(drag){
@@ -618,7 +743,14 @@ function onPointerMove(clientX,clientY){
   px=clientX; py=clientY;
 }
 
-function onPointerUp(){ drag=false; }
+function onPointerUp(){
+  if(activeShelf){
+    saveShelfPositions();
+    highlightShelf(activeShelf,false);
+    activeShelf=null;
+  }
+  drag=false;
+}
 
 renderer.domElement.addEventListener('mousedown',e=>onPointerDown(e.clientX,e.clientY));
 renderer.domElement.addEventListener('touchstart',e=>onPointerDown(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
@@ -631,9 +763,10 @@ window.addEventListener('wheel',e=>{tZoom=Math.max(3.5,Math.min(14,tZoom+e.delta
 // ─── Door ─────────────────────────────────────────────────────────────────────
 let doorOpen=false, doorAngle=0, tDoor=0;
 function toggleDoor(){
-  doorOpen=!doorOpen; tDoor=doorOpen?-Math.PI*0.6:0;
+  doorOpen=!doorOpen; tDoor=doorOpen?-Math.PI*0.42:0;
   document.getElementById('btn-open').textContent=doorOpen?'Fermer':'Ouvrir';
-  if(!doorOpen && activeShelf){highlightShelf(activeShelf,false);activeShelf=null;}
+  if(activeShelf){highlightShelf(activeShelf,false);activeShelf=null;}
+  drag=false;
   document.getElementById('hint').textContent=doorOpen
     ?'☞ Toucher une clayette · Double-tap pour voir les bouteilles'
     :'☞ Ouvrir la porte pour accéder aux clayettes';
@@ -651,9 +784,7 @@ function toggleLight(){
 // ─── Views ────────────────────────────────────────────────────────────────────
 function setView(v){
   document.querySelectorAll('.ctrl-btn').forEach(b=>b.classList.remove('active'));
-  if(v==='front'){tRotX=0.06;tRotY=0.0;      tZoom=8.8; document.getElementById('btn-front').classList.add('active');}
-  if(v==='angle'){tRotX=0.14;tRotY=0.55;     tZoom=9.4; document.getElementById('btn-angle').classList.add('active');}
-  if(v==='side'){ tRotX=0.08;tRotY=Math.PI/2;tZoom=9.4; document.getElementById('btn-side').classList.add('active');}
+  if(v==='front'){tRotX=0.06;tRotY=0.0; tZoom=8.8; document.getElementById('btn-front').classList.add('active');}
 }
 
 // ─── Render loop ──────────────────────────────────────────────────────────────
@@ -679,6 +810,138 @@ window.addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
+});
+
+// ─── Bottle counter ──────────────────────────────────────────────────────────
+function updateBottleCount(){
+  const total = shelfData.reduce((s,sh)=>s+sh.bottles.filter(b=>b).length, 0);
+  const el = document.getElementById('stat-total');
+  if(el) el.textContent = total;
+}
+updateBottleCount();
+
+// ─── Camera scan → analyze label → add to cave ─────────────────────────────────
+const BCOLS_SCAN={rouge:0x1A0608,blanc:0x182A18,rosé:0x1E0C14,'pétillant':0x0A1020};
+
+function typeGlyphJS(t){ return t==='rouge'?'🍷':t==='blanc'?'🥂':t==='rosé'?'🌸':'✨'; }
+function typeLabelJS(t){ return t==='rouge'?'Rouge':t==='blanc'?'Blanc':t==='rosé'?'Rosé':'Pétillant'; }
+
+async function analyzeWineLabel(b64){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"claude-sonnet-4-6", max_tokens:1000,
+      tools:[{type:"web_search_20250305",name:"web_search"}],
+      messages:[{role:"user",content:[
+        {type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},
+        {type:"text",text:`Analyse cette étiquette de vin.
+1. Identifie : nom, domaine/château, appellation, millésime, région, pays, type (rouge/blanc/rosé/pétillant).
+2. Cherche sur internet les notes Robert Parker (Wine Advocate) et James Suckling pour ce vin et ce millésime.
+3. Réponds UNIQUEMENT en JSON valide sans markdown ni backticks :
+{"name":"","appellation":"","vintage":"","region":"","country":"","type":"rouge|blanc|rosé|pétillant","parker":{"score":null,"note":""},"suckling":{"score":null,"note":""},"description":""}`}
+      ]}]
+    })
+  });
+  const d=await res.json();
+  const t=d.content?.find(b=>b.type==="text");
+  if(!t) throw new Error("no text");
+  return JSON.parse(t.text.replace(/```json|```/g,"").trim());
+}
+
+function findFirstEmptySlot(){
+  for(let si=0; si<shelfData.length; si++){
+    const bi = shelfData[si].bottles.findIndex(b=>!b);
+    if(bi !== -1) return {si, bi};
+  }
+  return null;
+}
+
+function addScannedBottle(wine){
+  const slot = findFirstEmptySlot();
+  if(!slot) return false;
+  shelfData[slot.si].bottles[slot.bi] = {
+    name: wine.name, vintage: wine.vintage, type: wine.type,
+    parker: wine.parker?.score || null, suckling: wine.suckling?.score || null
+  };
+  updateBottleCount();
+  return true;
+}
+
+function showScanPanel(html){
+  document.getElementById('scan-body').innerHTML = html;
+  document.getElementById('scan-overlay').classList.add('visible');
+}
+function closeScanOverlay(){
+  document.getElementById('scan-overlay').classList.remove('visible');
+}
+
+document.getElementById('camera-input').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  e.target.value = ''; // allow re-selecting same file later
+
+  showScanPanel(`
+    <div style="text-align:center;padding:40px 0;">
+      <div style="font-size:40px;margin-bottom:14px;">🔍</div>
+      <div style="color:#B8952A;font-size:15px;letter-spacing:1px;">Analyse en cours…</div>
+      <div style="color:#7A6570;font-size:12px;margin-top:8px;">Identification & recherche des notes</div>
+    </div>
+  `);
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const b64 = ev.target.result.split(',')[1];
+    try{
+      const wine = await analyzeWineLabel(b64);
+      const col = '#'+(BCOLS_SCAN[wine.type]||0x1A0608).toString(16).padStart(6,'0');
+      const scoresHtml = `
+        ${wine.parker?.score ? `
+          <div style="margin-bottom:10px;">
+            <div style="font-size:10px;color:#7A6570;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;">Robert Parker</div>
+            <div style="font-size:16px;color:#B8952A;font-weight:700;">${wine.parker.score}/100</div>
+            ${wine.parker.note ? `<div style="font-size:11px;color:#7A6570;font-style:italic;margin-top:3px;">${wine.parker.note}</div>` : ''}
+          </div>` : ''}
+        ${wine.suckling?.score ? `
+          <div>
+            <div style="font-size:10px;color:#7A6570;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;">James Suckling</div>
+            <div style="font-size:16px;color:#B8952A;font-weight:700;">${wine.suckling.score}/100</div>
+            ${wine.suckling.note ? `<div style="font-size:11px;color:#7A6570;font-style:italic;margin-top:3px;">${wine.suckling.note}</div>` : ''}
+          </div>` : ''}
+        ${(!wine.parker?.score && !wine.suckling?.score) ? `<div style="color:#7A6570;font-size:13px;font-style:italic;text-align:center;">Notes non disponibles</div>` : ''}
+      `;
+      showScanPanel(`
+        <div style="display:inline-flex;align-items:center;gap:5px;padding:3px 12px;border-radius:20px;margin-bottom:12px;background:${col}30;border:1px solid ${col}60;">
+          <span style="font-size:11px;">${typeGlyphJS(wine.type)}</span>
+          <span style="font-size:11px;color:#E8D5A0;letter-spacing:1px;font-weight:600;">${typeLabelJS(wine.type).toUpperCase()}</span>
+        </div>
+        <div style="font-size:21px;font-weight:700;color:#E8D5A0;line-height:1.2;">${wine.name||'Vin non identifié'}</div>
+        <div style="font-size:12px;color:#7A6570;margin-top:4px;margin-bottom:16px;">${wine.appellation||''} · ${wine.vintage||''} · ${wine.region||''}${wine.country?', '+wine.country:''}</div>
+        ${wine.description ? `<div style="font-size:13px;color:#F0E6D3CC;font-style:italic;border-left:2px solid #B8952A50;padding-left:14px;margin-bottom:18px;line-height:1.6;">${wine.description}</div>` : ''}
+        <div style="background:#221320;border-radius:12px;padding:14px 16px;margin-bottom:18px;">${scoresHtml}</div>
+        <div style="display:flex;gap:10px;">
+          <button id="confirm-add-bottle" style="flex:1;padding:15px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A 0%,#4A0E22 100%);color:#E8D5A0;font-family:inherit;font-size:14px;font-weight:700;">Ajouter à ma cave</button>
+          <button onclick="closeScanOverlay()" style="padding:15px 18px;border:none;border-radius:12px;cursor:pointer;background:#221320;color:#7A6570;">✕</button>
+        </div>
+      `);
+      document.getElementById('confirm-add-bottle').onclick = () => {
+        const added = addScannedBottle(wine);
+        closeScanOverlay();
+        if(!added){
+          alert("Toutes les clayettes sont pleines !");
+        }
+      };
+    }catch(err){
+      showScanPanel(`
+        <div style="background:#1A0808;border-radius:14px;padding:20px;border:1px solid #5A2020;color:#FF9090;font-size:14px;">
+          <div style="font-weight:600;margin-bottom:8px;">⚠ Erreur</div>
+          Étiquette illisible — réessayez avec une photo plus nette.
+          <button onclick="closeScanOverlay()" style="display:block;margin-top:14px;padding:8px 18px;background:#221320;border:none;border-radius:8px;color:#7A6570;cursor:pointer;">Fermer</button>
+        </div>
+      `);
+    }
+  };
+  reader.readAsDataURL(file);
 });
 </script>
 </body>
