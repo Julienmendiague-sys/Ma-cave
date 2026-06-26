@@ -1,4 +1,4 @@
-// api/analyze.js — Vercel Serverless Function (Gemini)
+// api/analyze.js — Vercel Serverless Function (Groq)
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -6,8 +6,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'GROQ_API_KEY not configured' });
 
   try {
     const { imageBase64 } = req.body;
@@ -20,47 +20,48 @@ export default async function handler(req, res) {
       + '"parker":{"score":96,"note":"commentaire court"},"suckling":{"score":95,"note":"commentaire court"},'
       + '"robinson":{"score":92,"note":"commentaire court"},"description":"description courte du vin"} '
       + "Regles: type = rouge/blanc/rose/petillant. score = entier sur 100 ou null si inconnu. "
-      + "Jancis Robinson note sur 20 convertie sur 100 (ex: 17.5/20 = 88/100). "
-      + "Retourne UNIQUEMENT le JSON, rien d'autre.";
+      + "Jancis Robinson note sur 20 convertie sur 100. Retourne UNIQUEMENT le JSON.";
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              {
-                inline_data: {
-                  mime_type: 'image/jpeg',
-                  data: imageBase64
-                }
-              },
-              { text: PROMPT }
-            ]
-          }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 1000,
-          }
-        })
-      }
-    );
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        max_tokens: 1000,
+        temperature: 0.1,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:image/jpeg;base64,${imageBase64}`
+              }
+            },
+            {
+              type: 'text',
+              text: PROMPT
+            }
+          ]
+        }]
+      })
+    });
 
     if (!response.ok) {
       const errText = await response.text();
-      return res.status(502).json({ error: 'Gemini API error: ' + errText.slice(0, 200) });
+      return res.status(502).json({ error: 'Groq API error: ' + errText.slice(0, 200) });
     }
 
     const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data?.choices?.[0]?.message?.content;
 
     if (!text) {
-      return res.status(502).json({ error: 'No text in Gemini response' });
+      return res.status(502).json({ error: 'No text in Groq response' });
     }
 
-    // Extract JSON even if surrounded by extra text
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) {
       return res.status(502).json({ error: 'No JSON found: ' + text.slice(0, 150) });
