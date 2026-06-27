@@ -965,7 +965,7 @@ async function handleImageInput(e){
         + '</div>'
         + (wine.price.url
           ? '<a href="'+wine.price.url+'" target="_blank" style="display:block;margin-top:8px;font-size:11px;color:#7A6570;text-decoration:underline;letter-spacing:0.5px;">&#128279; Vérifier sur iDealwine</a>'
-          : '<a href="https://www.idealwine.com/fr/recherche-vins-bordeaux.jsp?search='+encodeURIComponent((wine.name||'')+' '+(wine.vintage||''))+'" target="_blank" style="display:block;margin-top:8px;font-size:11px;color:#7A6570;text-decoration:underline;letter-spacing:0.5px;">&#128279; Vérifier sur iDealwine</a>'
+          : '<a href="https://www.idealwine.com/fr/prix-vins/index.jsp?familleProduit=V&libelle='+encodeURIComponent(wine.name||'')+'&millesime='+encodeURIComponent(wine.vintage||'')+'" target="_blank" style="display:block;margin-top:8px;font-size:11px;color:#7A6570;text-decoration:underline;letter-spacing:0.5px;">&#128279; Vérifier sur iDealwine</a>'
         )
         + '</div>'
       ) : '';
