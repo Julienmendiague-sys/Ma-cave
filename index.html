@@ -926,14 +926,20 @@ document.getElementById('camera-input').addEventListener('change', async (e)=>{
       const wine = await analyzeWineLabel(b64);
       const col = '#'+(BCOLS_SCAN[wine.type]||0x1A0608).toString(16).padStart(6,'0');
 
-      // Prix iDealwine
+      // Prix iDealwine avec lien cliquable
       const priceHtml = wine.price ? (
-        '<div style="display:flex;align-items:center;gap:12px;background:#1A1018;border-radius:10px;padding:10px 14px;margin-bottom:12px;">'
+        '<div style="background:#1A1018;border-radius:10px;padding:10px 14px;margin-bottom:12px;">'
+        + '<div style="display:flex;align-items:center;gap:12px;">'
         + '<span style="font-size:22px;">&#128176;</span>'
-        + '<div>'
+        + '<div style="flex:1;">'
         + '<div style="font-size:10px;color:#7A6570;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">iDealwine · Estimation</div>'
         + '<div style="font-size:18px;color:#B8952A;font-weight:700;">'+wine.price.value+'</div>'
         + '</div>'
+        + '</div>'
+        + (wine.price.url
+          ? '<a href="'+wine.price.url+'" target="_blank" style="display:block;margin-top:8px;font-size:11px;color:#7A6570;text-decoration:underline;letter-spacing:0.5px;">&#128279; Vérifier sur iDealwine</a>'
+          : '<a href="https://www.idealwine.com/fr/recherche-vins-bordeaux.jsp?search='+encodeURIComponent(wineName+' '+wineVintage)+'" target="_blank" style="display:block;margin-top:8px;font-size:11px;color:#7A6570;text-decoration:underline;letter-spacing:0.5px;">&#128279; Vérifier sur iDealwine</a>'
+        )
         + '</div>'
       ) : '';
 
