@@ -112,14 +112,21 @@ export default async function handler(req, res) {
     let idealwinePrice = null, idealwineUrl = null;
     try {
       const html = idealwineResult.value;
-      if (typeof html === 'string') {
-        // Chercher le prix moyen de la bouteille
-        const priceMatch = html.match(/(\d+[\s\u00a0]?\d*)\s*€/);
-        if (priceMatch) idealwinePrice = priceMatch[0].replace(/\s/g, '');
+      if (typeof html === 'string' && html.includes('idealwine')) {
+        // Chercher le prix moyen estimation (format: "XXX €" ou "X XXX €")
+        // On évite les prix génériques en cherchant dans le contexte "prix moyen" ou "estimation"
+        const priceContextMatch = html.match(/(?:prix moyen|estimation|cote)[^€]{0,100}([\d\s]+)\s*€/i)
+          || html.match(/(\d{2,4}(?:\s\d{3})?)\s*€(?:\s*\/\s*(?:bouteille|bt))?/i);
+        if (priceContextMatch) {
+          idealwinePrice = priceContextMatch[1].replace(/\s/g, '') + '€';
+        }
 
-        // Chercher le lien vers la fiche
-        const linkMatch = html.match(/href="(\/fr\/vins\/[^"]+\.jsp[^"]*)"/);
+        // Chercher le lien vers la fiche précise du vin
+        const linkMatch = html.match(/href="(\/fr\/prix-vins\/[^"]+\.jsp[^"]*)"/)
+          || html.match(/href="(\/fr\/vins\/[^"]+\.html[^"]*)"/);
         if (linkMatch) idealwineUrl = 'https://www.idealwine.com' + linkMatch[1];
+
+        // Si aucun prix trouvé dans le bon contexte, on ne met rien
       }
     } catch(e) {}
 
