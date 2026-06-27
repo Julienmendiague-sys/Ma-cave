@@ -1,4 +1,4 @@
-// api/analyze.js — Groq (vision) + Apify Vivino + Apify Wine-Searcher + iDealwine
+// api/analyze.js — Groq (vision) + CellarTracker (prix + notes)
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -6,10 +6,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const groqKey  = process.env.GROQ_API_KEY;
-  const apifyKey = process.env.APIFY_API_KEY;
-  if (!groqKey)  return res.status(500).json({ error: 'GROQ_API_KEY not configured' });
-  if (!apifyKey) return res.status(500).json({ error: 'APIFY_API_KEY not configured' });
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) return res.status(500).json({ error: 'GROQ_API_KEY not configured' });
 
   try {
     const { imageBase64 } = req.body;
@@ -51,86 +49,49 @@ export default async function handler(req, res) {
     const wineVintage = wine.vintage || '';
     const searchQuery = `${wineName} ${wineVintage}`.trim();
 
-    // ── Lancer les 3 recherches en parallèle ────────────────────────────────
-    const [vivinoResult, wineSearcherResult, idealwineResult] = await Promise.allSettled([
-
-      // ── Vivino via Apify ──────────────────────────────────────────────────
-      fetch(`https://api.apify.com/v2/acts/mrbridge~vivino-ratings-scraper/run-sync-get-dataset-items?token=${apifyKey}&timeout=25`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wineNames: [searchQuery], maxResults: 1 })
-      }).then(r => r.json()),
-
-      // ── Wine-Searcher via Apify ───────────────────────────────────────────
-      fetch(`https://api.apify.com/v2/acts/abotapi~wine-searcher-scraper/run-sync-get-dataset-items?token=${apifyKey}&timeout=25`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ searchTerms: [searchQuery], maxResults: 1 })
-      }).then(r => r.json()),
-
-      // ── iDealwine (scraping direct) ───────────────────────────────────────
-      fetch(
-        `https://www.idealwine.com/fr/cote/index.jsp?q=${encodeURIComponent(searchQuery)}`,
-        { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 'Accept-Language': 'fr-FR,fr;q=0.9' } }
-      ).then(r => r.text())
-    ]);
-
-    // ── Parser Vivino ─────────────────────────────────────────────────────
-    let vivino = null;
-    try {
-      const vData = vivinoResult.value;
-      if (Array.isArray(vData) && vData[0]) {
-        vivino = {
-          score: vData[0].rating || vData[0].average_rating || null,
-          count: vData[0].ratingsCount || vData[0].ratings || null
-        };
-      }
-    } catch(e) {}
-
-    // ── Parser Wine-Searcher ──────────────────────────────────────────────
+    // ── ÉTAPE 2 : CellarTracker (prix + notes critiques) ─────────────────────
+    let ctPrice = null, ctRating = null, ctUrl = null;
     let parker = null, suckling = null, robinson = null;
-    try {
-      const wsData = wineSearcherResult.value;
-      if (Array.isArray(wsData) && wsData[0]) {
-        const w = wsData[0];
-        const scores = w.criticScores || w.scores || [];
-        scores.forEach(s => {
-          const name = (s.critic || s.name || '').toLowerCase();
-          const score = parseInt(s.score || s.rating || 0);
-          if (name.includes('parker') || name.includes('advocate')) parker = { score, note: s.note || null };
-          if (name.includes('suckling')) suckling = { score, note: s.note || null };
-          if (name.includes('robinson')) {
-            let sc = score;
-            if (sc <= 20) sc = Math.round((sc / 20) * 100);
-            robinson = { score: sc, note: s.note || null };
-          }
-        });
-      }
-    } catch(e) {}
 
-    // ── Parser iDealwine ──────────────────────────────────────────────────
-    let idealwinePrice = null, idealwineUrl = null;
     try {
-      const html = idealwineResult.value;
-      if (typeof html === 'string' && html.includes('idealwine')) {
-        // Chercher le prix moyen estimation (format: "XXX €" ou "X XXX €")
-        // On évite les prix génériques en cherchant dans le contexte "prix moyen" ou "estimation"
-        const priceContextMatch = html.match(/(?:prix moyen|estimation|cote)[^€]{0,100}([\d\s]+)\s*€/i)
-          || html.match(/(\d{2,4}(?:\s\d{3})?)\s*€(?:\s*\/\s*(?:bouteille|bt))?/i);
-        if (priceContextMatch) {
-          idealwinePrice = priceContextMatch[1].replace(/\s/g, '') + '€';
+      const ctRes = await fetch(
+        `https://www.cellartracker.com/wine.asp?wine=${encodeURIComponent(searchQuery)}`,
+        { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 'Accept-Language': 'fr-FR,fr;q=0.9' } }
+      );
+
+      if (ctRes.ok) {
+        const html = await ctRes.text();
+
+        // Prix moyen
+        const priceMatch = html.match(/\$\s*([\d,]+(?:\.\d{2})?)/);
+        if (priceMatch) ctPrice = priceMatch[1].replace(',', '') + ' USD';
+
+        // Note communautaire
+        const ratingMatch = html.match(/Community\s+(?:Rating|Score)[^\d]*(\d+(?:\.\d)?)/i);
+        if (ratingMatch) ctRating = parseFloat(ratingMatch[1]);
+
+        // Parker
+        const parkerMatch = html.match(/Parker[^\d]*(\d{2,3})/i);
+        if (parkerMatch) parker = { score: parseInt(parkerMatch[1]), note: null };
+
+        // Suckling
+        const sucklingMatch = html.match(/Suckling[^\d]*(\d{2,3})/i);
+        if (sucklingMatch) suckling = { score: parseInt(sucklingMatch[1]), note: null };
+
+        // Robinson
+        const robinsonMatch = html.match(/Robinson[^\d]*(\d{2,3}(?:\.\d)?)/i);
+        if (robinsonMatch) {
+          let score = parseFloat(robinsonMatch[1]);
+          if (score <= 20) score = Math.round((score / 20) * 100);
+          robinson = { score: Math.round(score), note: null };
         }
 
-        // Chercher le lien vers la fiche précise du vin
-        const linkMatch = html.match(/href="(\/fr\/prix-vins\/[^"]+\.jsp[^"]*)"/)
-          || html.match(/href="(\/fr\/vins\/[^"]+\.html[^"]*)"/);
-        if (linkMatch) idealwineUrl = 'https://www.idealwine.com' + linkMatch[1];
-
-        // Si aucun prix trouvé dans le bon contexte, on ne met rien
+        // URL fiche
+        ctUrl = `https://www.cellartracker.com/wine.asp?wine=${encodeURIComponent(searchQuery)}`;
       }
-    } catch(e) {}
+    } catch(e) { /* CellarTracker inaccessible */ }
 
-    // ── Réponse finale ────────────────────────────────────────────────────
+    // ── Réponse finale ────────────────────────────────────────────────────────
     return res.status(200).json({
       name:        wineName,
       appellation: wine.appellation || '',
@@ -139,11 +100,11 @@ export default async function handler(req, res) {
       country:     wine.country || '',
       type:        wine.type || 'rouge',
       description: wine.description || '',
-      vivino:      vivino,
+      vivino:      ctRating ? { score: ctRating, count: null } : null,
       parker:      parker,
       suckling:    suckling,
       robinson:    robinson,
-      price:       idealwinePrice ? { value: idealwinePrice, source: 'iDealwine', url: idealwineUrl } : null
+      price:       ctPrice ? { value: ctPrice, source: 'CellarTracker', url: ctUrl } : null
     });
 
   } catch (err) {
