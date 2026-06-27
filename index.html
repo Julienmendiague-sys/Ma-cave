@@ -44,7 +44,10 @@ canvas { display:block; }
   bottom: 88px;
   right: 24px;
   z-index: 25;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
 }
 #btn-camera {
   width: 62px; height: 62px;
@@ -211,14 +214,37 @@ canvas { display:block; }
 
 <!-- ── FLOATING CAMERA BUTTON ── -->
 <input id="camera-input" type="file" accept="image/*" capture="environment" style="display:none">
+<input id="gallery-input" type="file" accept="image/*" style="display:none">
 <div id="btn-camera-wrap">
-  <button id="btn-camera" onclick="document.getElementById('camera-input').click()" title="Scanner une étiquette">
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E8D5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-      <circle cx="12" cy="13" r="4"/>
-    </svg>
-  </button>
-  <div id="btn-camera-label">Scanner</div>
+  <!-- Bouton Galerie -->
+  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+    <button id="btn-gallery" onclick="document.getElementById('gallery-input').click()" title="Importer une photo"
+      style="width:54px;height:54px;border-radius:50%;border:none;cursor:pointer;
+        background:#2E1A24;
+        box-shadow:0 4px 0 #00000080,0 8px 24px #00000060,inset 0 1px 0 #FFFFFF10;
+        display:flex;align-items:center;justify-content:center;transition:all .2s;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E8D5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+    </button>
+    <div style="font-size:9px;letter-spacing:1.5px;color:#7A6570;text-transform:uppercase;">Galerie</div>
+  </div>
+
+  <!-- Bouton Caméra -->
+  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+    <button id="btn-camera" onclick="document.getElementById('camera-input').click()" title="Scanner une étiquette"
+      style="width:62px;height:62px;border-radius:31px;border:none;cursor:pointer;
+        background:linear-gradient(160deg,#7A1A3A 0%,#4A0E22 100%);
+        box-shadow:0 6px 0 #00000080,0 12px 32px #7A1A3A60,0 0 0 4px #080608,0 0 0 5px #B8952A40,inset 0 1px 0 #E8D5A040;
+        display:flex;align-items:center;justify-content:center;transition:all .2s;">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E8D5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+      </svg>
+    </button>
+    <div id="btn-camera-label" style="font-size:9px;letter-spacing:1.5px;color:#7A6570;text-transform:uppercase;">Scanner</div>
+  </div>
 </div>
 
 <!-- ── SCAN RESULT OVERLAY ── -->
@@ -897,7 +923,8 @@ function compressImage(file, maxDim=1200, quality=0.82){
   });
 }
 
-document.getElementById('camera-input').addEventListener('change', async (e)=>{
+// Shared handler for both camera and gallery
+async function handleImageInput(e){
   const file = e.target.files[0];
   if(!file) return;
   e.target.value = '';
@@ -1010,8 +1037,10 @@ document.getElementById('camera-input').addEventListener('change', async (e)=>{
   };
   const url = URL.createObjectURL(file);
   img.src = url;
+}
 
-});
+document.getElementById('camera-input').addEventListener('change', handleImageInput);
+document.getElementById('gallery-input').addEventListener('change', handleImageInput);
 </script>
 </body>
 </html>
