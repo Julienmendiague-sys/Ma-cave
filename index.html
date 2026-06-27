@@ -926,6 +926,19 @@ document.getElementById('camera-input').addEventListener('change', async (e)=>{
       const wine = await analyzeWineLabel(b64);
       const col = '#'+(BCOLS_SCAN[wine.type]||0x1A0608).toString(16).padStart(6,'0');
 
+      // Vivino block
+      const vivinoHtml = wine.vivino ? (
+        '<div style="display:flex;align-items:center;gap:12px;background:#1A1018;border-radius:10px;padding:10px 14px;margin-bottom:12px;">'
+        + '<span style="font-size:22px;">&#127863;</span>'
+        + '<div>'
+        + '<div style="font-size:10px;color:#7A6570;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">Vivino</div>'
+        + '<div style="font-size:18px;color:#B8952A;font-weight:700;">'+wine.vivino.score+' <span style="font-size:12px;color:#7A6570;">/ 5</span>'
+        + (wine.vivino.count ? ' <span style="font-size:11px;color:#5A4A52;">('+wine.vivino.count.toLocaleString()+' avis)</span>' : '')
+        + '</div>'
+        + '</div>'
+        + '</div>'
+      ) : '';
+
       function scoreBlock(label, critic){
         if(!critic || !critic.score) return '';
         return '<div style="margin-bottom:10px;">'
@@ -935,10 +948,10 @@ document.getElementById('camera-input').addEventListener('change', async (e)=>{
           + '</div>';
       }
 
-      const scoresHtml = scoreBlock('Robert Parker', wine.parker)
+      const criticsHtml = scoreBlock('Robert Parker', wine.parker)
         + scoreBlock('James Suckling', wine.suckling)
-        + scoreBlock('Jancis Robinson', wine.robinson)
-        || '<div style="color:#7A6570;font-size:13px;font-style:italic;text-align:center;">Notes non disponibles</div>';
+        + scoreBlock('Jancis Robinson', wine.robinson);
+      const scoresHtml = criticsHtml || '<div style="color:#7A6570;font-size:13px;font-style:italic;text-align:center;">Notes critiques non disponibles</div>';
 
       const desc = wine.description
         ? '<div style="font-size:13px;color:#F0E6D3CC;font-style:italic;border-left:2px solid #B8952A50;padding-left:14px;margin-bottom:18px;line-height:1.6;">'+wine.description+'</div>'
@@ -952,6 +965,7 @@ document.getElementById('camera-input').addEventListener('change', async (e)=>{
         + '<div style="font-size:20px;font-weight:700;color:#E8D5A0;line-height:1.2;margin-bottom:4px;">'+(wine.name||'Vin non identifie')+'</div>'
         + '<div style="font-size:12px;color:#7A6570;margin-bottom:16px;">'+(wine.appellation||'')+' &middot; '+(wine.vintage||'')+' &middot; '+(wine.region||'')+(wine.country?', '+wine.country:'')+'</div>'
         + desc
+        + vivinoHtml
         + '<div style="background:#221320;border-radius:12px;padding:14px 16px;margin-bottom:18px;">'+scoresHtml+'</div>'
         + '<div style="display:flex;gap:10px;">'
         + '<button id="confirm-add-bottle" style="flex:1;padding:15px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:14px;font-weight:700;">Ajouter a ma cave</button>'
