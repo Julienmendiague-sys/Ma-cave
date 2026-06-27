@@ -1,4 +1,4 @@
-// api/analyze.js — Vercel Serverless Function (Groq)
+// api/analyze.js — Groq (vision) + Vivino + Millesima
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -6,67 +6,125 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GROQ_API_KEY not configured' });
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) return res.status(500).json({ error: 'GROQ_API_KEY not configured' });
 
   try {
     const { imageBase64 } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'Missing imageBase64' });
 
-    const PROMPT = "Tu es un expert en vins avec une connaissance encyclopedique des notes des critiques. "
-      + "Analyse cette etiquette et identifie precisement le vin (domaine, appellation, millesime). "
-      + "Ensuite donne les notes de Robert Parker (Wine Advocate), James Suckling et Jancis Robinson. "
-      + "IMPORTANT: Pour les grands vins connus (Bordeaux classes, Bourgogne, Rhone, Champagne, vins italiens, espagnols...), "
-      + "tu connais leurs notes typiques - utilise tes connaissances pour donner une estimation realiste plutot que null. "
-      + "Par exemple Chateau Margaux 2016 = Parker 98, Suckling 99, Robinson 95. "
-      + "Petrus, Lafite, Mouton, Cheval Blanc, Haut-Brion, Ausone, Romanee-Conti, etc. ont tous des notes connues. "
-      + "Pour Jancis Robinson: convertis sa note sur 20 en note sur 100 (ex: 18/20 = 90/100, 17.5/20 = 88/100). "
-      + "Reponds UNIQUEMENT avec ce JSON sans markdown ni backticks: "
-      + '{"name":"nom complet du vin","appellation":"appellation precise","vintage":"annee","region":"region","country":"pays",'
-      + '"type":"rouge ou blanc ou rose ou petillant",'
-      + '"parker":{"score":95,"note":"description courte en francais"},'
-      + '"suckling":{"score":94,"note":"description courte en francais"},'
-      + '"robinson":{"score":92,"note":"description courte en francais"},'
-      + '"description":"description elegante du vin en 1 phrase"} '
-      + "Ne mets null pour un score que si le vin est vraiment tres obscur et inconnu des critiques.";
+    // ── ÉTAPE 1 : Identifier le vin avec Groq ────────────────────────────────
+    const PROMPT = "Analyse cette etiquette de vin. Reponds UNIQUEMENT avec ce JSON sans markdown: "
+      + '{"name":"nom complet","vintage":"annee","region":"region","country":"pays","type":"rouge ou blanc ou rose ou petillant","description":"1 phrase elegante"}';
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
       body: JSON.stringify({
         model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-        max_tokens: 1000,
+        max_tokens: 500,
         temperature: 0.1,
         messages: [{
           role: 'user',
           content: [
-            {
-              type: 'image_url',
-              image_url: { url: `data:image/jpeg;base64,${imageBase64}` }
-            },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
             { type: 'text', text: PROMPT }
           ]
         }]
       })
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      return res.status(502).json({ error: 'Groq API error: ' + errText.slice(0, 200) });
+    if (!groqRes.ok) {
+      const e = await groqRes.text();
+      return res.status(502).json({ error: 'Groq error: ' + e.slice(0, 200) });
     }
 
-    const data = await response.json();
-    const text = data?.choices?.[0]?.message?.content;
-    if (!text) return res.status(502).json({ error: 'No text in Groq response' });
+    const groqData = await groqRes.json();
+    const groqText = groqData?.choices?.[0]?.message?.content || '';
+    const groqMatch = groqText.match(/\{[\s\S]*\}/);
+    if (!groqMatch) return res.status(502).json({ error: 'No JSON from Groq: ' + groqText.slice(0, 150) });
+    const wine = JSON.parse(groqMatch[0]);
 
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return res.status(502).json({ error: 'No JSON found: ' + text.slice(0, 150) });
+    const searchQuery = encodeURIComponent(`${wine.name} ${wine.vintage || ''}`);
 
-    const wine = JSON.parse(match[0]);
-    return res.status(200).json(wine);
+    // ── ÉTAPE 2 : Vivino (note /5) ───────────────────────────────────────────
+    let vivinoRating = null, vivinoCount = null;
+    try {
+      const vRes = await fetch(
+        `https://www.vivino.com/api/explore/explore?q=${searchQuery}&language=fr&currency_code=EUR&per_page=1`,
+        { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15' } }
+      );
+      if (vRes.ok) {
+        const vData = await vRes.json();
+        const match = vData?.explore_vintage?.matches?.[0];
+        if (match) {
+          vivinoRating = match.vintage?.statistics?.ratings_average?.toFixed(1) || null;
+          vivinoCount  = match.vintage?.statistics?.ratings_count || null;
+        }
+      }
+    } catch (e) { /* Vivino inaccessible, on continue */ }
+
+    // ── ÉTAPE 3 : Millesima (notes critiques) ────────────────────────────────
+    let parker = null, suckling = null, robinson = null, appellation = null;
+    try {
+      const mRes = await fetch(
+        `https://fr.millesima.com/recherche/?q=${searchQuery}`,
+        { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 'Accept-Language': 'fr-FR' } }
+      );
+      if (mRes.ok) {
+        const html = await mRes.text();
+
+        // Extraire la première URL de fiche produit
+        const productMatch = html.match(/href="(\/[a-z0-9-]+-(?:rouge|blanc|rose|champagne|petillant)[^"]*\.html)"/i);
+        if (productMatch) {
+          const productRes = await fetch(`https://fr.millesima.com${productMatch[1]}`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15' }
+          });
+          if (productRes.ok) {
+            const productHtml = await productRes.text();
+
+            // Parker
+            const parkerMatch = productHtml.match(/Robert Parker[^<]*<[^>]+>[\s]*(\d+)/i)
+              || productHtml.match(/parker[^"]*"[^"]*"[^>]*>[\s]*(\d{2,3})/i)
+              || productHtml.match(/(?:parker|wine advocate)[^\d]*(\d{2,3})\/100/i);
+            if (parkerMatch) parker = { score: parseInt(parkerMatch[1]), note: null };
+
+            // Suckling
+            const sucklingMatch = productHtml.match(/James Suckling[^<]*<[^>]+>[\s]*(\d+)/i)
+              || productHtml.match(/suckling[^\d]*(\d{2,3})\/100/i);
+            if (sucklingMatch) suckling = { score: parseInt(sucklingMatch[1]), note: null };
+
+            // Robinson
+            const robinsonMatch = productHtml.match(/Jancis Robinson[^<]*<[^>]+>[\s]*(\d+)/i)
+              || productHtml.match(/robinson[^\d]*(\d{2,3})\/20/i);
+            if (robinsonMatch) {
+              let score = parseInt(robinsonMatch[1]);
+              if (score <= 20) score = Math.round((score / 20) * 100);
+              robinson = { score, note: null };
+            }
+
+            // Appellation
+            const appMatch = productHtml.match(/appellation[^>]*>([^<]{5,50})<\/[^>]+>/i);
+            if (appMatch) appellation = appMatch[1].trim();
+          }
+        }
+      }
+    } catch (e) { /* Millesima inaccessible, on continue */ }
+
+    // ── Réponse finale ───────────────────────────────────────────────────────
+    return res.status(200).json({
+      name:        wine.name,
+      appellation: appellation || '',
+      vintage:     wine.vintage || '',
+      region:      wine.region || '',
+      country:     wine.country || '',
+      type:        wine.type || 'rouge',
+      description: wine.description || '',
+      vivino:      vivinoRating ? { score: parseFloat(vivinoRating), count: vivinoCount } : null,
+      parker:      parker,
+      suckling:    suckling,
+      robinson:    robinson,
+    });
 
   } catch (err) {
     return res.status(500).json({ error: err.message });
