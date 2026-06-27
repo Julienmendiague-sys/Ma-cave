@@ -13,14 +13,22 @@ export default async function handler(req, res) {
     const { imageBase64 } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'Missing imageBase64' });
 
-    const PROMPT = "Tu es un expert en vins. Analyse cette etiquette de vin. "
-      + "Reponds UNIQUEMENT avec un objet JSON valide, sans markdown, sans backticks, sans texte avant ou apres. "
-      + "Identifie le vin et donne les notes des critiques pour ce millesime. "
-      + 'Format exact: {"name":"...","appellation":"...","vintage":"...","region":"...","country":"...","type":"rouge",'
-      + '"parker":{"score":96,"note":"commentaire court"},"suckling":{"score":95,"note":"commentaire court"},'
-      + '"robinson":{"score":92,"note":"commentaire court"},"description":"description courte du vin"} '
-      + "Regles: type = rouge/blanc/rose/petillant. score = entier sur 100 ou null si inconnu. "
-      + "Jancis Robinson note sur 20 convertie sur 100. Retourne UNIQUEMENT le JSON.";
+    const PROMPT = "Tu es un expert en vins avec une connaissance encyclopedique des notes des critiques. "
+      + "Analyse cette etiquette et identifie precisement le vin (domaine, appellation, millesime). "
+      + "Ensuite donne les notes de Robert Parker (Wine Advocate), James Suckling et Jancis Robinson. "
+      + "IMPORTANT: Pour les grands vins connus (Bordeaux classes, Bourgogne, Rhone, Champagne, vins italiens, espagnols...), "
+      + "tu connais leurs notes typiques - utilise tes connaissances pour donner une estimation realiste plutot que null. "
+      + "Par exemple Chateau Margaux 2016 = Parker 98, Suckling 99, Robinson 95. "
+      + "Petrus, Lafite, Mouton, Cheval Blanc, Haut-Brion, Ausone, Romanee-Conti, etc. ont tous des notes connues. "
+      + "Pour Jancis Robinson: convertis sa note sur 20 en note sur 100 (ex: 18/20 = 90/100, 17.5/20 = 88/100). "
+      + "Reponds UNIQUEMENT avec ce JSON sans markdown ni backticks: "
+      + '{"name":"nom complet du vin","appellation":"appellation precise","vintage":"annee","region":"region","country":"pays",'
+      + '"type":"rouge ou blanc ou rose ou petillant",'
+      + '"parker":{"score":95,"note":"description courte en francais"},'
+      + '"suckling":{"score":94,"note":"description courte en francais"},'
+      + '"robinson":{"score":92,"note":"description courte en francais"},'
+      + '"description":"description elegante du vin en 1 phrase"} '
+      + "Ne mets null pour un score que si le vin est vraiment tres obscur et inconnu des critiques.";
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -37,14 +45,9 @@ export default async function handler(req, res) {
           content: [
             {
               type: 'image_url',
-              image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`
-              }
+              image_url: { url: `data:image/jpeg;base64,${imageBase64}` }
             },
-            {
-              type: 'text',
-              text: PROMPT
-            }
+            { type: 'text', text: PROMPT }
           ]
         }]
       })
@@ -57,15 +60,10 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content;
-
-    if (!text) {
-      return res.status(502).json({ error: 'No text in Groq response' });
-    }
+    if (!text) return res.status(502).json({ error: 'No text in Groq response' });
 
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) {
-      return res.status(502).json({ error: 'No JSON found: ' + text.slice(0, 150) });
-    }
+    if (!match) return res.status(502).json({ error: 'No JSON found: ' + text.slice(0, 150) });
 
     const wine = JSON.parse(match[0]);
     return res.status(200).json(wine);
