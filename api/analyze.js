@@ -70,7 +70,7 @@ export default async function handler(req, res) {
 
       // ── iDealwine (scraping direct) ───────────────────────────────────────
       fetch(
-        `https://www.idealwine.com/fr/recherche-vins-bordeaux.jsp?search=${encodeURIComponent(searchQuery)}`,
+        `https://www.idealwine.com/fr/cote/index.jsp?q=${encodeURIComponent(searchQuery)}`,
         { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 'Accept-Language': 'fr-FR,fr;q=0.9' } }
       ).then(r => r.text())
     ]);
