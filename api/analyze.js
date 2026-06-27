@@ -1,4 +1,4 @@
-// api/analyze.js — Groq (vision) + Vivino + Millesima
+// api/analyze.js — Groq (vision) + Apify Vivino + Apify Wine-Searcher + iDealwine
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -6,8 +6,10 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) return res.status(500).json({ error: 'GROQ_API_KEY not configured' });
+  const groqKey  = process.env.GROQ_API_KEY;
+  const apifyKey = process.env.APIFY_API_KEY;
+  if (!groqKey)  return res.status(500).json({ error: 'GROQ_API_KEY not configured' });
+  if (!apifyKey) return res.status(500).json({ error: 'APIFY_API_KEY not configured' });
 
   try {
     const { imageBase64 } = req.body;
@@ -15,7 +17,7 @@ export default async function handler(req, res) {
 
     // ── ÉTAPE 1 : Identifier le vin avec Groq ────────────────────────────────
     const PROMPT = "Analyse cette etiquette de vin. Reponds UNIQUEMENT avec ce JSON sans markdown: "
-      + '{"name":"nom complet","vintage":"annee","region":"region","country":"pays","type":"rouge ou blanc ou rose ou petillant","description":"1 phrase elegante"}';
+      + '{"name":"nom complet du domaine et du vin","vintage":"annee sur 4 chiffres","region":"region","country":"pays","type":"rouge ou blanc ou rose ou petillant","appellation":"appellation precise","description":"1 phrase elegante en francais"}';
 
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -42,88 +44,99 @@ export default async function handler(req, res) {
     const groqData = await groqRes.json();
     const groqText = groqData?.choices?.[0]?.message?.content || '';
     const groqMatch = groqText.match(/\{[\s\S]*\}/);
-    if (!groqMatch) return res.status(502).json({ error: 'No JSON from Groq: ' + groqText.slice(0, 150) });
+    if (!groqMatch) return res.status(502).json({ error: 'No JSON from Groq' });
     const wine = JSON.parse(groqMatch[0]);
 
-    const searchQuery = encodeURIComponent(`${wine.name} ${wine.vintage || ''}`);
+    const wineName    = wine.name || '';
+    const wineVintage = wine.vintage || '';
+    const searchQuery = `${wineName} ${wineVintage}`.trim();
 
-    // ── ÉTAPE 2 : Vivino (note /5) ───────────────────────────────────────────
-    let vivinoRating = null, vivinoCount = null;
+    // ── Lancer les 3 recherches en parallèle ────────────────────────────────
+    const [vivinoResult, wineSearcherResult, idealwineResult] = await Promise.allSettled([
+
+      // ── Vivino via Apify ──────────────────────────────────────────────────
+      fetch(`https://api.apify.com/v2/acts/mrbridge~vivino-ratings-scraper/run-sync-get-dataset-items?token=${apifyKey}&timeout=25`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wineNames: [searchQuery], maxResults: 1 })
+      }).then(r => r.json()),
+
+      // ── Wine-Searcher via Apify ───────────────────────────────────────────
+      fetch(`https://api.apify.com/v2/acts/abotapi~wine-searcher-scraper/run-sync-get-dataset-items?token=${apifyKey}&timeout=25`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ searchTerms: [searchQuery], maxResults: 1 })
+      }).then(r => r.json()),
+
+      // ── iDealwine (scraping direct) ───────────────────────────────────────
+      fetch(
+        `https://www.idealwine.com/fr/recherche-vins-bordeaux.jsp?search=${encodeURIComponent(searchQuery)}`,
+        { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 'Accept-Language': 'fr-FR,fr;q=0.9' } }
+      ).then(r => r.text())
+    ]);
+
+    // ── Parser Vivino ─────────────────────────────────────────────────────
+    let vivino = null;
     try {
-      const vRes = await fetch(
-        `https://www.vivino.com/api/explore/explore?q=${searchQuery}&language=fr&currency_code=EUR&per_page=1`,
-        { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15' } }
-      );
-      if (vRes.ok) {
-        const vData = await vRes.json();
-        const match = vData?.explore_vintage?.matches?.[0];
-        if (match) {
-          vivinoRating = match.vintage?.statistics?.ratings_average?.toFixed(1) || null;
-          vivinoCount  = match.vintage?.statistics?.ratings_count || null;
-        }
+      const vData = vivinoResult.value;
+      if (Array.isArray(vData) && vData[0]) {
+        vivino = {
+          score: vData[0].rating || vData[0].average_rating || null,
+          count: vData[0].ratingsCount || vData[0].ratings || null
+        };
       }
-    } catch (e) { /* Vivino inaccessible, on continue */ }
+    } catch(e) {}
 
-    // ── ÉTAPE 3 : Millesima (notes critiques) ────────────────────────────────
-    let parker = null, suckling = null, robinson = null, appellation = null;
+    // ── Parser Wine-Searcher ──────────────────────────────────────────────
+    let parker = null, suckling = null, robinson = null;
     try {
-      const mRes = await fetch(
-        `https://fr.millesima.com/recherche/?q=${searchQuery}`,
-        { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 'Accept-Language': 'fr-FR' } }
-      );
-      if (mRes.ok) {
-        const html = await mRes.text();
-
-        // Extraire la première URL de fiche produit
-        const productMatch = html.match(/href="(\/[a-z0-9-]+-(?:rouge|blanc|rose|champagne|petillant)[^"]*\.html)"/i);
-        if (productMatch) {
-          const productRes = await fetch(`https://fr.millesima.com${productMatch[1]}`, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15' }
-          });
-          if (productRes.ok) {
-            const productHtml = await productRes.text();
-
-            // Parker
-            const parkerMatch = productHtml.match(/Robert Parker[^<]*<[^>]+>[\s]*(\d+)/i)
-              || productHtml.match(/parker[^"]*"[^"]*"[^>]*>[\s]*(\d{2,3})/i)
-              || productHtml.match(/(?:parker|wine advocate)[^\d]*(\d{2,3})\/100/i);
-            if (parkerMatch) parker = { score: parseInt(parkerMatch[1]), note: null };
-
-            // Suckling
-            const sucklingMatch = productHtml.match(/James Suckling[^<]*<[^>]+>[\s]*(\d+)/i)
-              || productHtml.match(/suckling[^\d]*(\d{2,3})\/100/i);
-            if (sucklingMatch) suckling = { score: parseInt(sucklingMatch[1]), note: null };
-
-            // Robinson
-            const robinsonMatch = productHtml.match(/Jancis Robinson[^<]*<[^>]+>[\s]*(\d+)/i)
-              || productHtml.match(/robinson[^\d]*(\d{2,3})\/20/i);
-            if (robinsonMatch) {
-              let score = parseInt(robinsonMatch[1]);
-              if (score <= 20) score = Math.round((score / 20) * 100);
-              robinson = { score, note: null };
-            }
-
-            // Appellation
-            const appMatch = productHtml.match(/appellation[^>]*>([^<]{5,50})<\/[^>]+>/i);
-            if (appMatch) appellation = appMatch[1].trim();
+      const wsData = wineSearcherResult.value;
+      if (Array.isArray(wsData) && wsData[0]) {
+        const w = wsData[0];
+        const scores = w.criticScores || w.scores || [];
+        scores.forEach(s => {
+          const name = (s.critic || s.name || '').toLowerCase();
+          const score = parseInt(s.score || s.rating || 0);
+          if (name.includes('parker') || name.includes('advocate')) parker = { score, note: s.note || null };
+          if (name.includes('suckling')) suckling = { score, note: s.note || null };
+          if (name.includes('robinson')) {
+            let sc = score;
+            if (sc <= 20) sc = Math.round((sc / 20) * 100);
+            robinson = { score: sc, note: s.note || null };
           }
-        }
+        });
       }
-    } catch (e) { /* Millesima inaccessible, on continue */ }
+    } catch(e) {}
 
-    // ── Réponse finale ───────────────────────────────────────────────────────
+    // ── Parser iDealwine ──────────────────────────────────────────────────
+    let idealwinePrice = null, idealwineUrl = null;
+    try {
+      const html = idealwineResult.value;
+      if (typeof html === 'string') {
+        // Chercher le prix moyen de la bouteille
+        const priceMatch = html.match(/(\d+[\s\u00a0]?\d*)\s*€/);
+        if (priceMatch) idealwinePrice = priceMatch[0].replace(/\s/g, '');
+
+        // Chercher le lien vers la fiche
+        const linkMatch = html.match(/href="(\/fr\/vins\/[^"]+\.jsp[^"]*)"/);
+        if (linkMatch) idealwineUrl = 'https://www.idealwine.com' + linkMatch[1];
+      }
+    } catch(e) {}
+
+    // ── Réponse finale ────────────────────────────────────────────────────
     return res.status(200).json({
-      name:        wine.name,
-      appellation: appellation || '',
-      vintage:     wine.vintage || '',
+      name:        wineName,
+      appellation: wine.appellation || '',
+      vintage:     wineVintage,
       region:      wine.region || '',
       country:     wine.country || '',
       type:        wine.type || 'rouge',
       description: wine.description || '',
-      vivino:      vivinoRating ? { score: parseFloat(vivinoRating), count: vivinoCount } : null,
+      vivino:      vivino,
       parker:      parker,
       suckling:    suckling,
       robinson:    robinson,
+      price:       idealwinePrice ? { value: idealwinePrice, source: 'iDealwine', url: idealwineUrl } : null
     });
 
   } catch (err) {
