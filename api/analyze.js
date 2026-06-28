@@ -73,9 +73,17 @@ export default async function handler(req, res) {
     // Extraire snippets des résultats
     const notesSnippets = (serperNotes.organic || []).map(r => r.snippet || '').join(' ');
     const priceSnippets = (serperPrice.organic || []).map(r => `${r.title}: ${r.snippet}`).join(' ');
+
+    // Extraire un prix directement depuis les snippets avec regex
+    const allPriceText = (serperPrice.organic || []).map(r => `${r.title} ${r.snippet}`).join(' ');
+    const directPriceMatch = allPriceText.match(/(\d{2,4}(?:[.,]\d{2})?)\s*€/)
+      || allPriceText.match(/€\s*(\d{2,4}(?:[.,]\d{2})?)/);
+    const directPrice = directPriceMatch ? directPriceMatch[1].replace(',','.') + '€' : null;
+
+    // Trouver le meilleur lien prix
     const priceUrl = (serperPrice.organic || []).find(r =>
       r.link && (r.link.includes('idealwine') || r.link.includes('millesima') || r.link.includes('wine-searcher'))
-    )?.link || null;
+    )?.link || (serperPrice.organic?.[0]?.link || null);
 
     // ── ÉTAPE 3 : Claude synthétise tout ─────────────────────────────────────
     const claudePrompt = `Tu es un expert en vins. Voici des informations trouvées sur internet pour le vin "${searchQuery}":
@@ -85,6 +93,7 @@ ${notesSnippets}
 
 INFORMATIONS PRIX:
 ${priceSnippets}
+${directPrice ? `PRIX DETECTE AUTOMATIQUEMENT: ${directPrice}` : ''}
 
 A partir de ces informations, reponds UNIQUEMENT avec ce JSON sans markdown:
 {"parker":{"score":96,"note":"commentaire court"},"suckling":{"score":95,"note":"commentaire court"},"robinson":{"score":93,"note":"commentaire court"},"price":"45€","price_range":"40-50€","description":"description elegante du vin en 1 phrase en francais"}
@@ -92,10 +101,8 @@ A partir de ces informations, reponds UNIQUEMENT avec ce JSON sans markdown:
 Regles:
 - Extrait les scores depuis les informations fournies
 - Si une note n est pas mentionnee, mets null
-- Pour le prix, prends le prix le plus recent trouve
-- Si aucun prix trouve, mets null pour price et price_range
-- Score Robinson sur 100 (convertis depuis /20 si necessaire)
-- Pour le prix cherche des montants en euros dans les snippets (ex: "45 €", "120€", "entre 80 et 100€")`;
+- Pour le prix: utilise le PRIX DETECTE AUTOMATIQUEMENT si disponible, sinon cherche dans les snippets
+- Score Robinson sur 100 (convertis depuis /20 si necessaire)`;
 
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -133,10 +140,10 @@ Regles:
       parker:      notes.parker  || null,
       suckling:    notes.suckling || null,
       robinson:    notes.robinson || null,
-      price:       notes.price ? {
-        value:  notes.price,
+      price:       (notes.price || directPrice) ? {
+        value:  notes.price || directPrice,
         range:  notes.price_range || null,
-        source: 'iDealwine / Web',
+        source: 'Web',
         url:    priceUrl || `https://www.idealwine.com/fr/cote/index.jsp?q=${encodeURIComponent(searchQuery)}`
       } : null
     });
