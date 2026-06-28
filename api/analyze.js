@@ -59,13 +59,13 @@ export default async function handler(req, res) {
         })
       }).then(r => r.json()),
 
-      // Recherche prix iDealwine
+      // Recherche prix iDealwine + Millesima
       fetch('https://google.serper.dev/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-KEY': serperKey },
         body: JSON.stringify({
-          q: `${searchQuery} prix site:idealwine.com OR site:millesima.fr OR site:wine-searcher.com`,
-          gl: 'fr', hl: 'fr', num: 5
+          q: `"${searchQuery}" prix euros achat bouteille`,
+          gl: 'fr', hl: 'fr', num: 10
         })
       }).then(r => r.json())
     ]);
@@ -94,7 +94,8 @@ Regles:
 - Si une note n est pas mentionnee, mets null
 - Pour le prix, prends le prix le plus recent trouve
 - Si aucun prix trouve, mets null pour price et price_range
-- Score Robinson sur 100 (convertis depuis /20 si necessaire)`;
+- Score Robinson sur 100 (convertis depuis /20 si necessaire)
+- Pour le prix cherche des montants en euros dans les snippets (ex: "45 €", "120€", "entre 80 et 100€")`;
 
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -144,4 +145,3 @@ Regles:
     return res.status(500).json({ error: err.message });
   }
 }
- 
