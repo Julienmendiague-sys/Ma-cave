@@ -977,18 +977,21 @@ async function handleImageInput(e){
         + '</div>'
       ) : '';
 
-      function scoreBlock(label, critic){
+      function scoreBlock(label, critic, outOf){
         if(!critic || !critic.score) return '';
+        const note = outOf === 20
+          ? (Math.round((critic.score / 100) * 20 * 2) / 2).toFixed(1) + '/20'
+          : critic.score + '/100';
         return '<div style="margin-bottom:10px;">'
           + '<div style="font-size:10px;color:#7A6570;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;">'+label+'</div>'
-          + '<div style="font-size:16px;color:#B8952A;font-weight:700;">'+critic.score+'/100</div>'
-          + (critic.note ? '<div style="font-size:11px;color:#7A6570;font-style:italic;margin-top:3px;">'+critic.note+'</div>' : '')
+          + '<div style="font-size:16px;color:#B8952A;font-weight:700;">'+note+'</div>'
+          + (critic.note && critic.note !== 'null' ? '<div style="font-size:11px;color:#7A6570;font-style:italic;margin-top:3px;">'+critic.note+'</div>' : '')
           + '</div>';
       }
 
-      const criticsHtml = scoreBlock('Robert Parker', wine.parker)
-        + scoreBlock('James Suckling', wine.suckling)
-        + scoreBlock('Jancis Robinson', wine.robinson);
+      const criticsHtml = scoreBlock('Robert Parker', wine.parker, 100)
+        + scoreBlock('James Suckling', wine.suckling, 100)
+        + scoreBlock('Jancis Robinson', wine.robinson, 20);
       const scoresHtml = criticsHtml || '<div style="color:#7A6570;font-size:13px;font-style:italic;text-align:center;">Notes critiques non disponibles</div>';
 
       const desc = wine.description
@@ -1037,4 +1040,4 @@ document.getElementById('camera-input').addEventListener('change', handleImageIn
 document.getElementById('gallery-input').addEventListener('change', handleImageInput);
 </script>
 </body>
-</html> 
+</html>
