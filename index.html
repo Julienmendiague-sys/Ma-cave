@@ -953,15 +953,19 @@ async function handleImageInput(e){
       const wine = await analyzeWineLabel(b64);
       const col = '#'+(BCOLS_SCAN[wine.type]||0x1A0608).toString(16).padStart(6,'0');
 
-      // Lien iDealwine direct (cotation réelle sur le site)
-      const priceHtml = wine.idealwineUrl ? (
-        '<a href="'+wine.idealwineUrl+'" target="_blank" style="display:flex;align-items:center;gap:12px;background:#1A1018;border-radius:10px;padding:12px 14px;margin-bottom:12px;text-decoration:none;">'
+      // Prix estimé + lien iDealwine
+      const priceHtml = wine.price ? (
+        '<div style="background:#1A1018;border-radius:10px;padding:12px 14px;margin-bottom:12px;">'
+        + '<div style="display:flex;align-items:center;gap:12px;">'
         + '<span style="font-size:22px;">&#128176;</span>'
-        + '<div>'
-        + '<div style="font-size:10px;color:#7A6570;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">iDealwine</div>'
-        + '<div style="font-size:14px;color:#B8952A;font-weight:600;">Voir la cotation &amp; le prix &#10132;</div>'
+        + '<div style="flex:1;">'
+        + '<div style="font-size:10px;color:#7A6570;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">Prix moyen · ' + (wine.price.source||'Estimation') + '</div>'
+        + '<div style="font-size:18px;color:#B8952A;font-weight:700;">' + wine.price.value + '</div>'
+        + (wine.price.range ? '<div style="font-size:11px;color:#7A6570;margin-top:2px;">Fourchette : ' + wine.price.range + '</div>' : '')
         + '</div>'
-        + '</a>'
+        + '</div>'
+        + (wine.price.url ? '<a href="'+wine.price.url+'" target="_blank" style="display:block;margin-top:8px;font-size:11px;color:#7A6570;text-decoration:underline;">&#128279; Vérifier sur iDealwine</a>' : '')
+        + '</div>'
       ) : '';
 
       // Vivino block
