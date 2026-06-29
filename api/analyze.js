@@ -59,31 +59,58 @@ export default async function handler(req, res) {
         })
       }).then(r => r.json()),
 
-      // Recherche prix iDealwine + Millesima
+      // Recherche prix multi-sites
       fetch('https://google.serper.dev/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-KEY': serperKey },
         body: JSON.stringify({
-          q: `"${searchQuery}" prix euros achat bouteille`,
+          q: `${wineName} ${wineVintage} prix bouteille site:millesima.fr OR site:vinatis.com OR site:lavinia.fr OR site:idealwine.com`,
           gl: 'fr', hl: 'fr', num: 10
         })
       }).then(r => r.json())
     ]);
 
-    // Extraire snippets des résultats
+    // Extraire snippets des résultats notes
     const notesSnippets = (serperNotes.organic || []).map(r => r.snippet || '').join(' ');
-    const priceSnippets = (serperPrice.organic || []).map(r => `${r.title}: ${r.snippet}`).join(' ');
 
-    // Extraire un prix directement depuis les snippets avec regex
-    const allPriceText = (serperPrice.organic || []).map(r => `${r.title} ${r.snippet}`).join(' ');
-    const directPriceMatch = allPriceText.match(/(\d{2,4}(?:[.,]\d{2})?)\s*€/)
-      || allPriceText.match(/€\s*(\d{2,4}(?:[.,]\d{2})?)/);
-    const directPrice = directPriceMatch ? directPriceMatch[1].replace(',','.') + '€' : null;
+    // Extraire TOUS les prix depuis les résultats et faire une moyenne
+    const priceResults = serperPrice.organic || [];
+    const extractedPrices = [];
+    const priceLinks = [];
 
-    // Trouver le meilleur lien prix
-    const priceUrl = (serperPrice.organic || []).find(r =>
-      r.link && (r.link.includes('idealwine') || r.link.includes('millesima') || r.link.includes('wine-searcher'))
-    )?.link || (serperPrice.organic?.[0]?.link || null);
+    priceResults.forEach(r => {
+      const text = `${r.title} ${r.snippet}`;
+      // Chercher des prix entre 5€ et 50000€
+      const matches = text.matchAll(/(\d{1,5}(?:[.,]\d{1,2})?)\s*€/g);
+      for (const m of matches) {
+        const val = parseFloat(m[1].replace(',','.'));
+        if (val >= 5 && val <= 50000) {
+          extractedPrices.push(val);
+          if (r.link) priceLinks.push(r.link);
+        }
+      }
+    });
+
+    // Calculer la moyenne (en excluant les valeurs aberrantes)
+    let avgPrice = null;
+    let priceRange = null;
+    if (extractedPrices.length > 0) {
+      extractedPrices.sort((a,b) => a-b);
+      // Retirer les 20% extremes si on a assez de valeurs
+      let filtered = extractedPrices;
+      if (extractedPrices.length >= 5) {
+        const cut = Math.floor(extractedPrices.length * 0.2);
+        filtered = extractedPrices.slice(cut, extractedPrices.length - cut);
+      }
+      const sum = filtered.reduce((a,b) => a+b, 0);
+      avgPrice = Math.round(sum / filtered.length) + '€';
+      if (filtered.length > 1) {
+        priceRange = Math.round(filtered[0]) + '€ - ' + Math.round(filtered[filtered.length-1]) + '€';
+      }
+    }
+
+    const priceUrl = priceLinks[0] || null;
+    const priceSnippets = priceResults.map(r => `${r.title}: ${r.snippet}`).join(' ');
 
     // ── ÉTAPE 3 : Claude synthétise tout ─────────────────────────────────────
     const claudePrompt = `Tu es un expert en vins. Voici des informations trouvées sur internet pour le vin "${searchQuery}":
@@ -91,17 +118,12 @@ export default async function handler(req, res) {
 INFORMATIONS NOTES CRITIQUES:
 ${notesSnippets}
 
-INFORMATIONS PRIX:
-${priceSnippets}
-${directPrice ? `PRIX DETECTE AUTOMATIQUEMENT: ${directPrice}` : ''}
-
 A partir de ces informations, reponds UNIQUEMENT avec ce JSON sans markdown:
-{"parker":{"score":96,"note":"commentaire court"},"suckling":{"score":95,"note":"commentaire court"},"robinson":{"score":93,"note":"commentaire court"},"price":"45€","price_range":"40-50€","description":"description elegante du vin en 1 phrase en francais"}
+{"parker":{"score":96,"note":"commentaire court"},"suckling":{"score":95,"note":"commentaire court"},"robinson":{"score":93,"note":"commentaire court"},"description":"description elegante du vin en 1 phrase en francais"}
 
 Regles:
 - Extrait les scores depuis les informations fournies
 - Si une note n est pas mentionnee, mets null
-- Pour le prix: utilise le PRIX DETECTE AUTOMATIQUEMENT si disponible, sinon cherche dans les snippets
 - Score Robinson sur 100 (convertis depuis /20 si necessaire)`;
 
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -140,10 +162,10 @@ Regles:
       parker:      notes.parker  || null,
       suckling:    notes.suckling || null,
       robinson:    notes.robinson || null,
-      price:       (notes.price || directPrice) ? {
-        value:  notes.price || directPrice,
-        range:  notes.price_range || null,
-        source: 'Web',
+      price:       avgPrice ? {
+        value:  avgPrice,
+        range:  priceRange,
+        source: 'Moyenne web (iDealwine, Millesima, Vinatis...)',
         url:    priceUrl || `https://www.idealwine.com/fr/cote/index.jsp?q=${encodeURIComponent(searchQuery)}`
       } : null
     });
