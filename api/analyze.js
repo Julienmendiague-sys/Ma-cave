@@ -49,13 +49,13 @@ export default async function handler(req, res) {
 
     // ── ÉTAPE 2 : Serper cherche les infos sur Google ─────────────────────────
     const [serperNotes, serperPrice] = await Promise.all([
-      // Recherche notes critiques
+      // Recherche notes critiques + Vivino
       fetch('https://google.serper.dev/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-KEY': serperKey },
         body: JSON.stringify({
-          q: `${searchQuery} note Parker Suckling Robinson score 100`,
-          gl: 'fr', hl: 'fr', num: 5
+          q: `${searchQuery} note Parker Suckling Robinson score 100 vivino`,
+          gl: 'fr', hl: 'fr', num: 8
         })
       }).then(r => r.json()),
 
@@ -72,6 +72,19 @@ export default async function handler(req, res) {
 
     // Extraire snippets des résultats notes
     const notesSnippets = (serperNotes.organic || []).map(r => r.snippet || '').join(' ');
+
+    // Extraire note Vivino depuis les snippets
+    let vivinoScore = null, vivinoCount = null;
+    const allNotesText = (serperNotes.organic || []).map(r => r.title + ' ' + r.snippet).join(' ');
+    const vm1 = allNotesText.match(/vivino[^0-9]*([3-5][.,][0-9])[^0-9]*5/i);
+    const vm2 = allNotesText.match(/([3-5][.,][0-9])[^0-9]*5[^0-9]*vivino/i);
+    const vm3 = allNotesText.match(/vivino[^0-9]*([3-5][.,][0-9])/i);
+    const vm = vm1 || vm2 || vm3;
+    if (vm) {
+      vivinoScore = parseFloat(vm[1].replace(',','.'));
+      const cm = allNotesText.match(/([0-9][0-9 ,.]*)\s*(avis|notes|ratings)/i);
+      if (cm) vivinoCount = cm[1].trim();
+    }
 
     // Extraire TOUS les prix depuis les résultats et faire une moyenne
     const priceResults = serperPrice.organic || [];
