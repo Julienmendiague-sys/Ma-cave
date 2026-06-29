@@ -64,7 +64,7 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-API-KEY': serperKey },
         body: JSON.stringify({
-          q: `${wineName} ${wineVintage} prix bouteille site:millesima.fr OR site:vinatis.com OR site:lavinia.fr OR site:idealwine.com`,
+          q: `"${wineName}" "${wineVintage}" prix bouteille €`,
           gl: 'fr', hl: 'fr', num: 10
         })
       }).then(r => r.json())
@@ -79,52 +79,55 @@ export default async function handler(req, res) {
     const priceLinks = [];
 
     priceResults.forEach(r => {
-      const text = `${r.title} ${r.snippet}`;
-      // Chercher des prix entre 5€ et 50000€
-      const matches = text.matchAll(/(\d{1,5}(?:[.,]\d{1,2})?)\s*€/g);
-      for (const m of matches) {
+      const text = `${r.title} ${r.snippet || ''}`;
+      // Chercher prix au format "182,00 €", "182€", "182 €", "182.00€"
+      const regex = /(\d{1,5}(?:[.,]\d{1,2})?)\s*€/g;
+      let m;
+      while ((m = regex.exec(text)) !== null) {
         const val = parseFloat(m[1].replace(',','.'));
-        if (val >= 5 && val <= 50000) {
+        // Prix raisonnable pour une bouteille (8€ - 50000€)
+        if (val >= 8 && val <= 50000) {
           extractedPrices.push(val);
-          if (r.link) priceLinks.push(r.link);
+          if (r.link && priceLinks.indexOf(r.link) === -1) priceLinks.push(r.link);
         }
       }
     });
 
-    // Calculer la moyenne (en excluant les valeurs aberrantes)
+    // Calculer la moyenne en retirant les outliers
     let avgPrice = null;
     let priceRange = null;
     if (extractedPrices.length > 0) {
       extractedPrices.sort((a,b) => a-b);
-      // Retirer les 20% extremes si on a assez de valeurs
+      // Si on a 4+ prix, retirer le min et max (outliers)
       let filtered = extractedPrices;
-      if (extractedPrices.length >= 5) {
-        const cut = Math.floor(extractedPrices.length * 0.2);
-        filtered = extractedPrices.slice(cut, extractedPrices.length - cut);
+      if (extractedPrices.length >= 4) {
+        filtered = extractedPrices.slice(1, extractedPrices.length - 1);
       }
       const sum = filtered.reduce((a,b) => a+b, 0);
-      avgPrice = Math.round(sum / filtered.length) + '€';
+      const avg = Math.round(sum / filtered.length);
+      avgPrice = avg + '€';
       if (filtered.length > 1) {
         priceRange = Math.round(filtered[0]) + '€ - ' + Math.round(filtered[filtered.length-1]) + '€';
       }
     }
 
     const priceUrl = priceLinks[0] || null;
-    const priceSnippets = priceResults.map(r => `${r.title}: ${r.snippet}`).join(' ');
+    const priceSnippets = priceResults.map(r => `${r.title}: ${r.snippet || ''}`).join(' ');
 
     // ── ÉTAPE 3 : Claude synthétise tout ─────────────────────────────────────
-    const claudePrompt = `Tu es un expert en vins. Voici des informations trouvées sur internet pour le vin "${searchQuery}":
+    const claudePrompt = `Tu es un expert en vins avec connaissance encyclopedique des prix du marche. Pour le vin "${searchQuery}":
 
-INFORMATIONS NOTES CRITIQUES:
+INFORMATIONS TROUVEES SUR INTERNET:
 ${notesSnippets}
+${priceSnippets}
 
-A partir de ces informations, reponds UNIQUEMENT avec ce JSON sans markdown:
-{"parker":{"score":96,"note":"commentaire court"},"suckling":{"score":95,"note":"commentaire court"},"robinson":{"score":93,"note":"commentaire court"},"description":"description elegante du vin en 1 phrase en francais"}
+Reponds UNIQUEMENT avec ce JSON sans markdown:
+{"parker":{"score":96,"note":"court"},"suckling":{"score":95,"note":"court"},"robinson":{"score":93,"note":"court"},"price":"150€","price_range":"130-170€","description":"1 phrase elegante"}
 
 Regles:
-- Extrait les scores depuis les informations fournies
-- Si une note n est pas mentionnee, mets null
-- Score Robinson sur 100 (convertis depuis /20 si necessaire)`;
+- Extrait les notes des critiques depuis les infos fournies, null si pas mentionne
+- Robinson sur 100 (17.5/20 = 88)
+- PRIX: utilise les infos web si disponibles, sinon estime le prix marche realiste en euros pour ce vin et millesime. Tu dois TOUJOURS donner un prix, jamais null.`;
 
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
