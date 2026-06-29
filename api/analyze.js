@@ -135,12 +135,13 @@ ${notesSnippets}
 ${priceSnippets}
 
 Reponds UNIQUEMENT avec ce JSON sans markdown:
-{"parker":{"score":96,"note":"court"},"suckling":{"score":95,"note":"court"},"robinson":{"score":93,"note":"court"},"price":"150€","price_range":"130-170€","description":"1 phrase elegante"}
+{"parker":{"score":96,"note":"court"},"suckling":{"score":95,"note":"court"},"robinson":{"score":93,"note":"court"},"vivino":4.2,"price":"150€","price_range":"130-170€","description":"1 phrase elegante"}
 
 Regles:
 - Extrait les notes des critiques depuis les infos fournies, null si pas mentionne
 - Robinson sur 100 (17.5/20 = 88)
-- PRIX: utilise les infos web si disponibles, sinon estime le prix marche realiste en euros pour ce vin et millesime. Tu dois TOUJOURS donner un prix, jamais null.`;
+- PRIX: utilise les infos web si disponibles, sinon estime le prix marche realiste. Toujours donner un prix.
+- VIVINO: donne une note realiste sur 5 basee sur la reputation et les notes critiques du vin (ex: grand cru bordeaux bien note = 4.3-4.6, vin de pays = 3.5-4.0). Toujours donner une note Vivino.`;
 
     const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
