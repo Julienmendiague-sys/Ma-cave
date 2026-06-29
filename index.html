@@ -968,14 +968,16 @@ async function handleImageInput(e){
         + '</div>'
       ) : '';
 
-      // Vivino block
-      const vivinoHtml = wine.vivino ? (
+      // Vivino block — score peut être {score:4.2} ou directement 4.2
+      const vivinoScore2 = wine.vivino ? (typeof wine.vivino === 'object' ? wine.vivino.score : wine.vivino) : null;
+      const vivinoCount2 = wine.vivino && typeof wine.vivino === 'object' ? wine.vivino.count : null;
+      const vivinoHtml = vivinoScore2 ? (
         '<div style="display:flex;align-items:center;gap:12px;background:#1A1018;border-radius:10px;padding:10px 14px;margin-bottom:12px;">'
         + '<span style="font-size:22px;">&#127863;</span>'
         + '<div>'
         + '<div style="font-size:10px;color:#7A6570;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">Vivino</div>'
-        + '<div style="font-size:18px;color:#B8952A;font-weight:700;">'+wine.vivino.score+' <span style="font-size:12px;color:#7A6570;">/ 5</span>'
-        + (wine.vivino.count ? ' <span style="font-size:11px;color:#5A4A52;">('+wine.vivino.count.toLocaleString()+' avis)</span>' : '')
+        + '<div style="font-size:18px;color:#B8952A;font-weight:700;">'+vivinoScore2+' <span style="font-size:12px;color:#7A6570;">/ 5</span>'
+        + (vivinoCount2 ? ' <span style="font-size:11px;color:#5A4A52;">('+vivinoCount2+' avis)</span>' : '')
         + '</div>'
         + '</div>'
         + '</div>'
