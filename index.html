@@ -735,16 +735,17 @@ function buildShelf3D(data){
   sb(SW,0.12,0.05,mEdge, 0,slatH2/2+0.06,frZ+0.03);
   sb(SW*0.4,0.06,0.004,mLbl, 0,slatH2/2+0.06,frZ+0.056);
 
-  // Bottles — debout, verticales, dimensionnées selon la taille réelle de la clayette
+  // Bottles — couchées sur le flanc, alignées dans le sens des lattes (profondeur)
   const COLS=6, ROWS=2;
   const bSpX = SW / COLS;
   const bSpZ = SD / (ROWS + 0.6);
   let filled=0;
 
-  // Échelle de la bouteille calculée pour bien rentrer dans une case de la grille
-  // (diamètre du corps doit être < bSpX, hauteur totale doit être < hauteur dispo de la clayette)
-  const bottleDiameter = bSpX * 0.62;
-  const BSCALE = bottleDiameter / 0.12; // 0.12 = diamètre de base du corps (2 * 0.06)
+  // Échelle calculée pour que la bouteille couchée rentre à la fois en largeur (diamètre < bSpX)
+  // et en profondeur (longueur totale ≈0.5 unités de base < bSpZ)
+  const scaleFromWidth = (bSpX * 0.85) / 0.12;   // diamètre du corps = 0.12 de base
+  const scaleFromDepth = (bSpZ * 0.92) / 0.50;   // longueur totale bouteille ≈ 0.50 de base
+  const BSCALE = Math.min(scaleFromWidth, scaleFromDepth);
 
   for(let row=0;row<ROWS;row++){
     for(let col=0;col<COLS;col++){
@@ -761,8 +762,9 @@ function buildShelf3D(data){
         const lMat=new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
         const g=new THREE.Group();
         const bs=BSCALE;
-        // Bouteille debout (pas de rotation Z = verticale, base posée sur la clayette)
-        g.position.set(bx, by + 0.17*bs, bz);
+        // Bouteille couchée, alignée dans le sens des lattes (axe de profondeur Z)
+        g.rotation.x = Math.PI/2;
+        g.position.set(bx, by + 0.06*bs, bz);
         const body=new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,14),bMat); body.castShadow=true; g.add(body);
         const sho=new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,14),bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
         const nk=new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,12),bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
