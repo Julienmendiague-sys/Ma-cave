@@ -174,6 +174,17 @@ canvas { display:block; }
 #shelf-count { font-size: 12px; color: #7A6570; letter-spacing: 0.5px; }
 #shelf-count span { color: #B8952A; font-weight: 700; }
 #shelf-hint { font-size: 10px; color: #3A2A32; letter-spacing: 1px; }
+#placement-banner {
+  position: fixed; top: 90px; left: 50%; transform: translateX(-50%) translateY(-20px);
+  z-index: 30; background: linear-gradient(135deg, #7A1A3A, #4A0E22);
+  border-radius: 14px; padding: 14px 22px; box-shadow: 0 8px 24px #00000060, inset 0 1px 0 #E8D5A030;
+  opacity: 0; pointer-events: none; transition: all 0.3s;
+  text-align: center; max-width: 88%;
+}
+#placement-banner.visible { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: all; }
+#placement-banner .title { color: #E8D5A0; font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
+#placement-banner .sub { color: #D4A0B0; font-size: 11px; margin-top: 4px; }
+#placement-cancel { margin-top: 8px; background: #00000040; border: none; border-radius: 8px; padding: 5px 14px; color: #E8D5A0; font-size: 11px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -254,6 +265,13 @@ canvas { display:block; }
     <button id="scan-close" onclick="closeScanOverlay()">✕</button>
     <div id="scan-body"></div>
   </div>
+</div>
+
+<!-- ── BANNIÈRE DE PLACEMENT ── -->
+<div id="placement-banner">
+  <div class="title">🍷 Touche une clayette pour ranger ta bouteille</div>
+  <div class="sub" id="placement-wine-name"></div>
+  <button id="placement-cancel" onclick="cancelPlacement()">Annuler</button>
 </div>
 
 <!-- ── SHELF 3D OVERLAY ──────────────────────────────────────────────────── -->
@@ -583,6 +601,79 @@ function initShelfRenderer(){
   },{passive:true});
 }
 
+// ── Génère une étiquette texturée avec le nom du vin ───────────────────────────
+const labelTextureCache = {};
+function makeLabelTexture(name, vintage, type){
+  const key = (name||'')+'|'+(vintage||'')+'|'+(type||'');
+  if(labelTextureCache[key]) return labelTextureCache[key];
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 280;
+  const ctx = canvas.getContext('2d');
+
+  // Fond crème avec léger dégradé
+  const grad = ctx.createLinearGradient(0,0,0,280);
+  grad.addColorStop(0, '#F5EEDD');
+  grad.addColorStop(1, '#EDE2C8');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,512,280);
+
+  // Bordure décorative
+  ctx.strokeStyle = type==='blanc' ? '#A08850' : '#7A1A3A';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(14,14,512-28,280-28);
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(24,24,512-48,280-48);
+
+  // Nom du domaine (haut)
+  ctx.fillStyle = '#2A1810';
+  ctx.textAlign = 'center';
+  const wineName = (name || 'Vin').toUpperCase();
+  let fontSize = wineName.length > 22 ? 30 : 38;
+  ctx.font = `bold ${fontSize}px Georgia, serif`;
+
+  // Découpe le nom sur 2 lignes si trop long
+  const words = wineName.split(' ');
+  let lines = [''];
+  let li = 0;
+  words.forEach(w => {
+    const test = lines[li] + (lines[li]?' ':'') + w;
+    if(ctx.measureText(test).width > 440 && lines[li]){
+      li++; lines[li] = w;
+    } else {
+      lines[li] = test;
+    }
+  });
+  const startY = lines.length > 1 ? 95 : 115;
+  lines.forEach((line,i) => ctx.fillText(line, 256, startY + i*44));
+
+  // Ligne décorative
+  const lineY = startY + lines.length*44 + 15;
+  ctx.strokeStyle = '#7A1A3A60';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(120, lineY); ctx.lineTo(392, lineY);
+  ctx.stroke();
+
+  // Millésime (centre)
+  if(vintage){
+    ctx.font = 'italic 32px Georgia, serif';
+    ctx.fillStyle = '#7A1A3A';
+    ctx.fillText(vintage, 256, lineY + 50);
+  }
+
+  // Type de vin (bas)
+  ctx.font = '16px Georgia, serif';
+  ctx.fillStyle = '#5A4530';
+  const typeLabels = {rouge:'VIN ROUGE', blanc:'VIN BLANC', rosé:'VIN ROSÉ', 'pétillant':'PÉTILLANT'};
+  ctx.fillText(typeLabels[type] || 'VIN', 256, 245);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  labelTextureCache[key] = tex;
+  return tex;
+}
+
 function buildShelf3D(data){
   if(sGroup){ sScene.remove(sGroup); }
   sGroup=new THREE.Group();
@@ -638,7 +729,7 @@ function buildShelf3D(data){
         filled++;
         const bMat=new THREE.MeshStandardMaterial({color:BCOLS3[b.type]||0x1A0608,roughness:0.12,metalness:0.25,transparent:true,opacity:0.9});
         const cMat=new THREE.MeshStandardMaterial({color:CCOLS3[b.type]||0x7A1020,roughness:0.3,metalness:0.6});
-        const lMat=new THREE.MeshStandardMaterial({color:0xF0E8D0,roughness:0.85});
+        const lMat=new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
         const g=new THREE.Group();
         const bs=BSCALE*0.9;
         g.rotation.z=Math.PI/2;
@@ -729,6 +820,11 @@ function onPointerDown(clientX,clientY){
   px=clientX; py=clientY; drag=false;
   const hit=doorOpen?pickShelf(clientX,clientY):null;
   if(hit){
+    // Mode placement de bouteille en attente : un tap place la bouteille
+    if(pendingBottle){
+      placeBottleOnShelf(hit.index);
+      return;
+    }
     // Double-tap detection
     const now=Date.now();
     if(lastTapShelf===hit && now-lastTapTime<350){
@@ -868,22 +964,47 @@ async function analyzeWineLabel(b64){
   return wine;
 }
 
-function findFirstEmptySlot(){
-  for(let si=0; si<shelfData.length; si++){
-    const bi = shelfData[si].bottles.findIndex(b=>!b);
-    if(bi !== -1) return {si, bi};
-  }
-  return null;
+function findFirstEmptySlotIn(si){
+  return shelfData[si].bottles.findIndex(b=>!b);
 }
 
+// ── Mode "placement en attente" ──────────────────────────────────────────────
+let pendingBottle = null; // bouteille scannée en attente de placement
+
 function addScannedBottle(wine){
-  const slot = findFirstEmptySlot();
-  if(!slot) return false;
-  shelfData[slot.si].bottles[slot.bi] = {
+  // Stocke la bouteille en attente, ouvre la porte, et attend le clic sur une clayette
+  pendingBottle = {
     name: wine.name, vintage: wine.vintage, type: wine.type,
     parker: wine.parker?.score || null, suckling: wine.suckling?.score || null, robinson: wine.robinson?.score || null
   };
+  closeScanOverlay();
+  if(!doorOpen) toggleDoor();
+  document.getElementById('hint').textContent = '☞ Touche une clayette pour y ranger ta bouteille';
+  document.getElementById('placement-wine-name').textContent = (wine.name||'') + (wine.vintage ? ' · '+wine.vintage : '');
+  document.getElementById('placement-banner').classList.add('visible');
+  return true;
+}
+
+function cancelPlacement(){
+  pendingBottle = null;
+  document.getElementById('placement-banner').classList.remove('visible');
+  document.getElementById('hint').textContent = doorOpen
+    ? '☞ Toucher une clayette · Double-tap pour voir les bouteilles'
+    : '☞ Ouvrir la porte pour accéder aux clayettes';
+}
+
+function placeBottleOnShelf(shelfIndex){
+  if(!pendingBottle) return false;
+  const bi = findFirstEmptySlotIn(shelfIndex);
+  if(bi === -1){
+    alert('Cette clayette est pleine ! Choisis-en une autre.');
+    return false;
+  }
+  shelfData[shelfIndex].bottles[bi] = pendingBottle;
   updateBottleCount();
+  pendingBottle = null;
+  document.getElementById('placement-banner').classList.remove('visible');
+  document.getElementById('hint').textContent = '☞ Toucher une clayette · Double-tap pour voir les bouteilles';
   return true;
 }
 
