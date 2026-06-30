@@ -427,11 +427,35 @@ const shelfData = Array.from({length:SHELF_COUNT}, (_,i)=>({
   bottles: Array(12).fill(null)
 }));
 
-// Wine stock — synced with the management app
-const WINES_STOCK = [
+// ── Persistence: bouteilles dans les clayettes ──────────────────────────────
+function loadShelfData(){
+  try{
+    const raw = localStorage.getItem('ma-cave-bottles');
+    if(raw){
+      const saved = JSON.parse(raw);
+      saved.forEach((bottles, i) => {
+        if(shelfData[i] && Array.isArray(bottles)) shelfData[i].bottles = bottles;
+      });
+      return true; // données restaurées
+    }
+  }catch(e){}
+  return false;
+}
+
+function saveShelfData(){
+  try{
+    const data = shelfData.map(s => s.bottles);
+    localStorage.setItem('ma-cave-bottles', JSON.stringify(data));
+  }catch(e){}
+}
+
+const hadSavedBottles = loadShelfData();
+
+// Wine stock — sert d'exemple uniquement si aucune donnée sauvegardée
+const WINES_STOCK = hadSavedBottles ? [] : [
   { name:'Château Margaux', vintage:'2018', type:'rouge', parker:98, suckling:97, robinson:95, quantity:3 }
 ];
-// Pre-fill shelves from stock
+// Pre-fill shelves from stock (uniquement au tout premier lancement)
 let _slot=0;
 WINES_STOCK.forEach(w=>{
   for(let q=0;q<w.quantity;q++){
@@ -711,19 +735,24 @@ function buildShelf3D(data){
   sb(SW,0.12,0.05,mEdge, 0,slatH2/2+0.06,frZ+0.03);
   sb(SW*0.4,0.06,0.004,mLbl, 0,slatH2/2+0.06,frZ+0.056);
 
-  // Bottles — laid horizontally on the shelf
+  // Bottles — debout, verticales, dimensionnées selon la taille réelle de la clayette
   const COLS=6, ROWS=2;
-  const bSpX=SW/COLS;
+  const bSpX = SW / COLS;
+  const bSpZ = SD / (ROWS + 0.6);
   let filled=0;
-  const BSCALE=SCALE3*0.9; // bottle scale relative to shelf
+
+  // Échelle de la bouteille calculée pour bien rentrer dans une case de la grille
+  // (diamètre du corps doit être < bSpX, hauteur totale doit être < hauteur dispo de la clayette)
+  const bottleDiameter = bSpX * 0.62;
+  const BSCALE = bottleDiameter / 0.12; // 0.12 = diamètre de base du corps (2 * 0.06)
 
   for(let row=0;row<ROWS;row++){
     for(let col=0;col<COLS;col++){
       const idx=row*COLS+col;
       const b=data.bottles[idx]||null;
       const bx=-SW/2+bSpX/2+col*bSpX;
-      const bz=row===0 ? -SD*0.20 : SD*0.20;
-      const by=slatH2/2+0.13*BSCALE;
+      const bz=-SD/2+bSpZ*0.7+row*bSpZ;
+      const by=slatH2/2;
 
       if(b){
         filled++;
@@ -731,15 +760,15 @@ function buildShelf3D(data){
         const cMat=new THREE.MeshStandardMaterial({color:CCOLS3[b.type]||0x7A1020,roughness:0.3,metalness:0.6});
         const lMat=new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
         const g=new THREE.Group();
-        const bs=BSCALE*0.9;
-        g.rotation.z=Math.PI/2;
-        g.position.set(bx,by,bz);
+        const bs=BSCALE;
+        // Bouteille debout (pas de rotation Z = verticale, base posée sur la clayette)
+        g.position.set(bx, by + 0.17*bs, bz);
         const body=new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,14),bMat); body.castShadow=true; g.add(body);
         const sho=new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,14),bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
         const nk=new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,12),bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
         const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,12),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
-        const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.12*bs,14,1,true,-1.3,2.6);
-        const lbl=new THREE.Mesh(lblGeo,lMat); lbl.position.y=-0.02*bs; g.add(lbl);
+        const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.16*bs,14,1,true,-1.3,2.6);
+        const lbl=new THREE.Mesh(lblGeo,lMat); lbl.position.y=0.0*bs; g.add(lbl);
         sGroup.add(g);
       } else {
         // Empty slot — subtle flat oval outline resting on the shelf, not a 3D bottle
@@ -939,6 +968,7 @@ function updateBottleCount(){
   const total = shelfData.reduce((s,sh)=>s+sh.bottles.filter(b=>b).length, 0);
   const el = document.getElementById('stat-total');
   if(el) el.textContent = total;
+  saveShelfData();
 }
 updateBottleCount();
 
