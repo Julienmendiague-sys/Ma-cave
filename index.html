@@ -286,7 +286,7 @@ canvas { display:block; }
   </div>
   <div id="shelf-bottombar">
     <div id="shelf-count"><span id="fill-count">0</span> / 6 emplacements occupés</div>
-    <div id="shelf-hint">☞ Glisser pour pivoter</div>
+    <div id="shelf-hint">☞ Tap = sélectionner · Double-tap = retourner · Glisser = déplacer</div>
   </div>
 </div>
 
@@ -573,6 +573,7 @@ function pickShelf(clientX,clientY){
 // ─── Shelf zoom overlay ───────────────────────────────────────────────────────
 let shelfViewOpen=false;
 let currentShelfData=null;
+let currentShelfIndex=null;
 
 // ── Mini Three.js scene for shelf 3D view ─────────────────────────────────────
 let sRenderer=null, sScene=null, sCamera=null, sAnimId=null;
@@ -580,8 +581,67 @@ let sDrag=false, sPx=0, sPy=0;
 let sRotX=-0.3, sRotY=0.5, sTRotX=-0.3, sTRotY=0.5;
 let sGroup=null;
 
+// Bottle interaction state
+let sBottleMeshes=[];     // [{mesh:Group, slotIndex:int}]
+let sSelectedSlot=null;   // slot index currently selected
+let sDragBottle=false;    // dragging a bottle
+let sDragStartSlot=null;
+let sLastTapSlot=null, sLastTapTime=0;
+let sBottleFlipped={};    // {slotIndex: bool} — true = retournée
+
 const BCOLS3={rouge:0x1A0608, blanc:0x182A18, rosé:0x1E0C14, pétillant:0x0A1020};
 const CCOLS3={rouge:0x7A1020, blanc:0xB09018, rosé:0xB06070, pétillant:0x203080};
+
+// Raycaster pour la scène clayette
+const sRaycaster=new THREE.Raycaster();
+const sMouse=new THREE.Vector2();
+
+function sPickBottle(clientX, clientY){
+  if(!sCamera || !sBottleMeshes.length) return null;
+  sMouse.x=(clientX/innerWidth)*2-1;
+  sMouse.y=-(clientY/innerHeight)*2+1;
+  sRaycaster.setFromCamera(sMouse, sCamera);
+  const allMeshes=sBottleMeshes.flatMap(b=>b.group.children);
+  const hits=sRaycaster.intersectObjects(allMeshes, false);
+  if(!hits.length) return null;
+  const hitMesh=hits[0].object;
+  return sBottleMeshes.find(b=>b.group.children.includes(hitMesh))||null;
+}
+
+function sHighlightBottle(slotIdx, on){
+  const b=sBottleMeshes.find(b=>b.slotIndex===slotIdx);
+  if(!b) return;
+  b.group.children.forEach(m=>{
+    if(m.material && m.material.emissive){
+      m.material.emissive.set(on ? 0xB8952A : 0x000000);
+      m.material.emissiveIntensity = on ? 0.4 : 0;
+    }
+  });
+}
+
+function sMoveBottle(fromSlot, toSlot){
+  if(fromSlot===toSlot || !currentShelfData) return;
+  // Échanger les deux slots
+  const tmp=currentShelfData.bottles[toSlot];
+  currentShelfData.bottles[toSlot]=currentShelfData.bottles[fromSlot];
+  currentShelfData.bottles[fromSlot]=tmp;
+  // Échanger aussi les flip states
+  const tmpFlip=sBottleFlipped[toSlot];
+  sBottleFlipped[toSlot]=sBottleFlipped[fromSlot];
+  sBottleFlipped[fromSlot]=tmpFlip;
+  saveShelfData();
+  buildShelf3D(currentShelfData);
+}
+
+function sFlipBottle(slotIdx){
+  if(!currentShelfData || !currentShelfData.bottles[slotIdx]) return;
+  sBottleFlipped[slotIdx]=!sBottleFlipped[slotIdx];
+  const b=sBottleMeshes.find(b=>b.slotIndex===slotIdx);
+  if(b){
+    // Rotation Y de 180° pour retourner bouchon/cul
+    b.group.rotation.y += Math.PI;
+  }
+}
 
 function initShelfRenderer(){
   const canvas=document.getElementById('shelf-canvas');
@@ -603,25 +663,62 @@ function initShelfRenderer(){
   const sl1=new THREE.DirectionalLight(0xFFE8C0,2.5); sl1.position.set(3,5,4); sl1.castShadow=true; sScene.add(sl1);
   const sl2=new THREE.DirectionalLight(0x401828,0.8); sl2.position.set(-3,0,-2); sScene.add(sl2);
   const sl3=new THREE.DirectionalLight(0xC0A060,0.5); sl3.position.set(0,-3,2); sScene.add(sl3);
-  // Warm light from above (LED effect)
   const led=new THREE.PointLight(0xFFCC88,1.2,6); led.position.set(0,2,1); sScene.add(led);
 
-  // Drag to rotate
-  canvas.addEventListener('mousedown',  e=>{sDrag=true;sPx=e.clientX;sPy=e.clientY;});
-  canvas.addEventListener('touchstart', e=>{sDrag=true;sPx=e.touches[0].clientX;sPy=e.touches[0].clientY;},{passive:true});
-  window.addEventListener('mouseup',  ()=>sDrag=false);
-  window.addEventListener('touchend', ()=>sDrag=false);
-  window.addEventListener('mousemove', e=>{
-    if(!sDrag||!shelfViewOpen) return;
-    sTRotY+=(e.clientX-sPx)*0.009; sTRotX+=(e.clientY-sPy)*0.009;
-    sTRotX=Math.max(-0.8,Math.min(0.8,sTRotX));
-    sPx=e.clientX; sPy=e.clientY;
-  });
+  // ── Interactions bouteilles ──────────────────────────────────────────────
+  function onSDown(clientX, clientY){
+    sPx=clientX; sPy=clientY; sDrag=false; sDragBottle=false;
+    const hit=sPickBottle(clientX, clientY);
+    if(hit){
+      const now=Date.now();
+      // Double-tap → retourner la bouteille
+      if(sLastTapSlot===hit.slotIndex && now-sLastTapTime<350){
+        sFlipBottle(hit.slotIndex);
+        sLastTapTime=0; sLastTapSlot=null;
+        return;
+      }
+      sLastTapTime=now; sLastTapSlot=hit.slotIndex;
+      // Désélectionner l'ancienne sélection
+      if(sSelectedSlot!==null && sSelectedSlot!==hit.slotIndex) sHighlightBottle(sSelectedSlot,false);
+      sSelectedSlot=hit.slotIndex;
+      sDragStartSlot=hit.slotIndex;
+      sDragBottle=true;
+      sHighlightBottle(sSelectedSlot,true);
+    } else {
+      if(sSelectedSlot!==null){ sHighlightBottle(sSelectedSlot,false); sSelectedSlot=null; }
+      sDrag=true;
+    }
+  }
+
+  function onSMove(clientX, clientY){
+    if(!shelfViewOpen) return;
+    const dx=clientX-sPx, dy=clientY-sPy;
+    if(sDrag){
+      sTRotY+=dx*0.009; sTRotX+=dy*0.009;
+      sTRotX=Math.max(-0.8,Math.min(0.8,sTRotX));
+    }
+    sPx=clientX; sPy=clientY;
+  }
+
+  function onSUp(clientX, clientY){
+    if(sDragBottle && sDragStartSlot!==null){
+      // Trouver le slot de destination par raycasting sur les anneaux/positions
+      const hit=sPickBottle(clientX, clientY);
+      if(hit && hit.slotIndex!==sDragStartSlot){
+        sMoveBottle(sDragStartSlot, hit.slotIndex);
+      }
+    }
+    sDrag=false; sDragBottle=false; sDragStartSlot=null;
+  }
+
+  canvas.addEventListener('mousedown',  e=>onSDown(e.clientX,e.clientY));
+  canvas.addEventListener('touchstart', e=>{onSDown(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+  window.addEventListener('mouseup',  e=>{ if(shelfViewOpen) onSUp(e.clientX,e.clientY); });
+  window.addEventListener('touchend', e=>{ if(shelfViewOpen && e.changedTouches[0]) onSUp(e.changedTouches[0].clientX,e.changedTouches[0].clientY); });
+  window.addEventListener('mousemove', e=>onSMove(e.clientX,e.clientY));
   window.addEventListener('touchmove', e=>{
-    if(!sDrag||!shelfViewOpen) return;
-    sTRotY+=(e.touches[0].clientX-sPx)*0.009; sTRotX+=(e.touches[0].clientY-sPy)*0.009;
-    sTRotX=Math.max(-0.8,Math.min(0.8,sTRotX));
-    sPx=e.touches[0].clientX; sPy=e.touches[0].clientY;
+    if(!shelfViewOpen) return;
+    onSMove(e.touches[0].clientX,e.touches[0].clientY);
   },{passive:true});
 }
 
@@ -702,6 +799,8 @@ function buildShelf3D(data){
   if(sGroup){ sScene.remove(sGroup); }
   sGroup=new THREE.Group();
   sScene.add(sGroup);
+  sBottleMeshes=[];
+  sSelectedSlot=null;
 
   // Real Haier shelf: 460mm wide × 530mm deep → scale 1u=497mm
   // SW=0.926, SD=1.066 → upscale ×2.4 for display
@@ -761,15 +860,17 @@ function buildShelf3D(data){
       const bs=BSCALE;
       // Couchée, axe du corps le long de Z (profondeur), étiquette vers l'avant/caméra
       g.rotation.x = Math.PI/2;
+      // Appliquer le flip si la bouteille a été retournée
+      if(sBottleFlipped[col]) g.rotation.y = Math.PI;
       g.position.set(bx, by + 0.06*bs, bz);
       const body=new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,16),bMat); body.castShadow=true; g.add(body);
       const sho=new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,16),bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
       const nk=new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,14),bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
       const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,14),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
-      // Étiquette tournée pour faire face à la caméra (vers l'avant, +Z local après rotation)
       const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.17*bs,16,1,true,-1.0,2.0);
       const lbl=new THREE.Mesh(lblGeo,lMat); lbl.rotation.y = Math.PI; lbl.position.y=-0.04*bs; g.add(lbl);
       sGroup.add(g);
+      sBottleMeshes.push({group:g, slotIndex:col});
     } else {
       // Emplacement vide — anneau discret au sol
       const bs2=BSCALE*0.9;
@@ -802,7 +903,9 @@ function animateShelf(){
 function openShelfView(shelfObj){
   const data=shelfData[shelfObj.index];
   currentShelfData=data;
+  currentShelfIndex=shelfObj.index;
   shelfViewOpen=true;
+  sBottleFlipped={};  // Reset flip states for this shelf
   document.getElementById('shelf-num').textContent=shelfObj.index+1;
   document.getElementById('shelf-subtitle').textContent=data.label+' · 6 emplacements';
   if(!sRenderer) initShelfRenderer();
@@ -968,6 +1071,55 @@ function updateBottleCount(){
   const el = document.getElementById('stat-total');
   if(el) el.textContent = total;
   saveShelfData();
+  renderBottlesInCave();
+}
+
+// ── Bouteilles visibles dans la cave principale ───────────────────────────────
+const BOTTLE_COLORS_CAVE = {rouge:0x1A0608, blanc:0x182A18, rosé:0x1E0C14, pétillant:0x0A1020};
+const CAPSULE_COLORS_CAVE = {rouge:0x7A1020, blanc:0xB09018, rosé:0xB06070, pétillant:0x203080};
+let caveBottleGroup = new THREE.Group();
+caveGroup.add(caveBottleGroup);
+
+function renderBottlesInCave(){
+  // Supprimer les anciennes bouteilles
+  while(caveBottleGroup.children.length) caveBottleGroup.remove(caveBottleGroup.children[0]);
+
+  const SLOTS = 6;
+  const bSpX = shelfW / SLOTS;
+  // Echelle : diamètre ≈ 98% de bSpX, corps = 0.12 de base
+  const BSCALE = (bSpX * 0.92) / 0.12;
+  const bs = BSCALE;
+
+  shelfData.forEach((shelf, si) => {
+    const shelfObj = shelfGroups[si];
+    if(!shelfObj) return;
+    const shelfY = shelfObj.currentY;
+
+    shelf.bottles.forEach((b, col) => {
+      if(!col < SLOTS && !b) return;
+      if(col >= SLOTS || !b) return;
+
+      const bx = -shelfW/2 + bSpX/2 + col*bSpX;
+      const bz = frontZ2 - (0.30*bs) - 0.04;
+      const by = shelfY + slatH/2 + 0.06*bs;
+
+      const bMat = new THREE.MeshStandardMaterial({color:BOTTLE_COLORS_CAVE[b.type]||0x1A0608, roughness:0.12, metalness:0.25, transparent:true, opacity:0.9});
+      const cMat = new THREE.MeshStandardMaterial({color:CAPSULE_COLORS_CAVE[b.type]||0x7A1020, roughness:0.3, metalness:0.6});
+      const lMat = new THREE.MeshStandardMaterial({color:0xF0E8D0, roughness:0.85});
+
+      const g = new THREE.Group();
+      g.rotation.x = Math.PI/2;
+      g.position.set(bx, by, bz);
+
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,12), bMat); body.castShadow=true; g.add(body);
+      const sho  = new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,12), bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
+      const nk   = new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,10), bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
+      const cap  = new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,10), cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
+      const lbl  = new THREE.Mesh(new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.14*bs,12,1,true,-1.0,2.0), lMat); lbl.position.y=-0.02*bs; g.add(lbl);
+
+      caveBottleGroup.add(g);
+    });
+  });
 }
 updateBottleCount();
 
