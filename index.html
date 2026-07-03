@@ -280,14 +280,16 @@ canvas { display:block; }
   <div id="shelf-topbar">
     <div>
       <div id="shelf-title">Clayette nº<span id="shelf-num">1</span></div>
-      <div id="shelf-subtitle">6 emplacements</div>
+      <div id="shelf-subtitle">4 emplacements</div>
     </div>
     <button id="btn-close-shelf" onclick="closeShelfView()">✕</button>
   </div>
   <div id="shelf-bottombar">
-    <div id="shelf-count"><span id="fill-count">0</span> / 6 emplacements occupés</div>
-    <div id="shelf-hint">☞ Tap = sélectionner · Double-tap = retourner · Glisser = déplacer</div>
+    <div id="shelf-count"><span id="fill-count">0</span> / 4 emplacements occupés</div>
+    <div id="shelf-hint">☞ Tap pour sélectionner · Glisser pour déplacer</div>
   </div>
+
+
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -415,8 +417,8 @@ const usableH   = usableTop-usableBot;
 const SHELF_COUNT=7;
 const shelfSpacing = usableH/SHELF_COUNT;
 const shelfW=iW-0.06, shelfD3=iD-0.14;
-const slatH=0.016, slatSec=0.015;
-const SLAT_COUNT=10, slatSpacing=shelfW/SLAT_COUNT;
+const slatH=0.022, slatSec=0.065;  // lattes plus larges et plus hautes
+const SLAT_COUNT=6, slatSpacing=shelfW/SLAT_COUNT;
 const backZ=-(CD/2-WT)+0.05, frontZ2=backZ+shelfD3, midZ=backZ+shelfD3/2;
 
 const shelfGroups=[];
@@ -424,7 +426,7 @@ const shelfGroups=[];
 const shelfData = Array.from({length:SHELF_COUNT}, (_,i)=>({
   index: i,
   label: `Clayette nº${i+1}`,
-  bottles: Array(6).fill(null)
+  bottles: Array(4).fill(null)
 }));
 
 // ── Persistence: bouteilles dans les clayettes ──────────────────────────────
@@ -459,7 +461,7 @@ const WINES_STOCK = hadSavedBottles ? [] : [
 let _slot=0;
 WINES_STOCK.forEach(w=>{
   for(let q=0;q<w.quantity;q++){
-    const si=Math.floor(_slot/6), bi=_slot%6;
+    const si=Math.floor(_slot/4), bi=_slot%4;
     if(si<shelfData.length) shelfData[si].bottles[bi]={name:w.name,vintage:w.vintage,type:w.type,parker:w.parker,suckling:w.suckling,robinson:w.robinson};
     _slot++;
   }
@@ -475,15 +477,19 @@ function buildShelf(sy, idx){
     m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true;
     g.add(m); meshes.push(m); return m;
   }
-  lbox(shelfW,slatSec,slatSec,matWoodEdge,0,0,frontZ2-slatSec/2);
-  lbox(shelfW,slatSec,slatSec,matWoodEdge,0,0,backZ+slatSec/2);
-  for(let s=0;s<SLAT_COUNT;s++){
-    const sx=-shelfW/2+slatSpacing/2+s*slatSpacing;
-    lbox(slatSec,slatH,shelfD3,matWood,sx,0,midZ);
+  lbox(iW, slatH*2.0, slatSec*0.30, matWoodEdge, 0, slatH*0.5, frontZ2);
+  lbox(iW, slatH*1.6, slatSec*0.18, matWoodEdge, 0, slatH*0.3, backZ);
+  // Latte de bord gauche — collée au bord de la cave
+  // 8 lattes: bords EXACTEMENT aux extrémités de shelfW
+  // Centres: latte 0 à -shelfW/2, latte 7 à +shelfW/2, les 6 autres réparties
+  for(let s=0; s<8; s++){
+    const t = s / 7; // 0 → 1
+    const sx = -shelfW/2 + t*shelfW;
+    const mat2 = (s===0||s===7) ? matWoodEdge : matWood;
+    lbox(slatSec, slatH, shelfD3, mat2, sx, 0, midZ);
   }
   const railH=0.036;
-  lbox(shelfW,railH,0.013,matWoodEdge,0,slatH/2+railH/2,frontZ2+0.009);
-  lbox(shelfW*0.5,railH*0.48,0.001,matLabel,0,slatH/2+railH/2,frontZ2+0.016);
+
   return {group:g, targetY:sy, currentY:sy, meshes, selected:false, index:idx};
 }
 
@@ -617,30 +623,34 @@ function sHighlightBottle(slotIdx, on){
       m.material.emissiveIntensity = on ? 0.4 : 0;
     }
   });
+
 }
 
 function sMoveBottle(fromSlot, toSlot){
   if(fromSlot===toSlot || !currentShelfData) return;
-  // Échanger les deux slots
   const tmp=currentShelfData.bottles[toSlot];
   currentShelfData.bottles[toSlot]=currentShelfData.bottles[fromSlot];
   currentShelfData.bottles[fromSlot]=tmp;
-  // Échanger aussi les flip states
   const tmpFlip=sBottleFlipped[toSlot];
   sBottleFlipped[toSlot]=sBottleFlipped[fromSlot];
   sBottleFlipped[fromSlot]=tmpFlip;
+  // Persist flip into bottle data
+  if(currentShelfData.bottles[toSlot]) currentShelfData.bottles[toSlot].flipped = sBottleFlipped[toSlot];
+  if(currentShelfData.bottles[fromSlot]) currentShelfData.bottles[fromSlot].flipped = sBottleFlipped[fromSlot];
   saveShelfData();
   buildShelf3D(currentShelfData);
 }
 
 function sFlipBottle(slotIdx){
+  if(slotIdx===null || slotIdx===undefined) return;
   if(!currentShelfData || !currentShelfData.bottles[slotIdx]) return;
-  sBottleFlipped[slotIdx]=!sBottleFlipped[slotIdx];
-  const b=sBottleMeshes.find(b=>b.slotIndex===slotIdx);
-  if(b){
-    // Rotation Y de 180° pour retourner bouchon/cul
-    b.group.rotation.y += Math.PI;
+  sBottleFlipped[slotIdx] = !sBottleFlipped[slotIdx];
+  if(currentShelfData.bottles[slotIdx]){
+    currentShelfData.bottles[slotIdx].flipped = sBottleFlipped[slotIdx];
+    saveShelfData();
   }
+  // Rebuild to apply correct rotation.x for the new orientation
+  buildShelf3D(currentShelfData);
 }
 
 function initShelfRenderer(){
@@ -666,25 +676,33 @@ function initShelfRenderer(){
   const led=new THREE.PointLight(0xFFCC88,1.2,6); led.position.set(0,2,1); sScene.add(led);
 
   // ── Interactions bouteilles ──────────────────────────────────────────────
+  let sPendingTap=null; // {slotIndex, clientX, clientY, timer}
+
   function onSDown(clientX, clientY){
     sPx=clientX; sPy=clientY; sDrag=false; sDragBottle=false;
     const hit=sPickBottle(clientX, clientY);
     if(hit){
       const now=Date.now();
-      // Double-tap → retourner la bouteille
-      if(sLastTapSlot===hit.slotIndex && now-sLastTapTime<350){
+      // Double-tap : deuxième tap rapide sur la même bouteille → flip uniquement
+      if(sPendingTap && sPendingTap.slotIndex===hit.slotIndex && now-sPendingTap.time<350){
+        clearTimeout(sPendingTap.timer);
+        sPendingTap=null;
         sFlipBottle(hit.slotIndex);
-        sLastTapTime=0; sLastTapSlot=null;
-        return;
+        return; // NE PAS sélectionner, NE PAS déplacer
       }
-      sLastTapTime=now; sLastTapSlot=hit.slotIndex;
-      // Désélectionner l'ancienne sélection
-      if(sSelectedSlot!==null && sSelectedSlot!==hit.slotIndex) sHighlightBottle(sSelectedSlot,false);
-      sSelectedSlot=hit.slotIndex;
+      // Premier tap : préparer le drag et noter le tap
       sDragStartSlot=hit.slotIndex;
       sDragBottle=true;
+      // Sélectionner immédiatement en or
+      if(sSelectedSlot!==null && sSelectedSlot!==hit.slotIndex) sHighlightBottle(sSelectedSlot,false);
+      sSelectedSlot=hit.slotIndex;
       sHighlightBottle(sSelectedSlot,true);
+      // Mémoriser ce tap pour détecter un éventuel double-tap
+      if(sPendingTap) clearTimeout(sPendingTap.timer);
+      const timer=setTimeout(()=>{ sPendingTap=null; }, 350);
+      sPendingTap={slotIndex:hit.slotIndex, time:now, timer};
     } else {
+      if(sPendingTap){ clearTimeout(sPendingTap.timer); sPendingTap=null; }
       if(sSelectedSlot!==null){ sHighlightBottle(sSelectedSlot,false); sSelectedSlot=null; }
       sDrag=true;
     }
@@ -693,7 +711,8 @@ function initShelfRenderer(){
   function onSMove(clientX, clientY){
     if(!shelfViewOpen) return;
     const dx=clientX-sPx, dy=clientY-sPy;
-    if(sDrag){
+    // Rotation de la clayette seulement si pas de bouteille sélectionnée
+    if(sDrag && !sDragBottle){
       sTRotY+=dx*0.009; sTRotX+=dy*0.009;
       sTRotX=Math.max(-0.8,Math.min(0.8,sTRotX));
     }
@@ -702,17 +721,23 @@ function initShelfRenderer(){
 
   function onSUp(clientX, clientY){
     if(sDragBottle && sDragStartSlot!==null){
-      // Trouver le slot de destination par raycasting sur les anneaux/positions
-      const hit=sPickBottle(clientX, clientY);
-      if(hit && hit.slotIndex!==sDragStartSlot){
-        sMoveBottle(sDragStartSlot, hit.slotIndex);
+      const totalDX = clientX - sPxStart;
+      const THRESHOLD = 60; // pixels minimum pour déclencher le déplacement
+      if(Math.abs(totalDX) > THRESHOLD){
+        const dir = totalDX > 0 ? 1 : -1;
+        const targetSlot = sDragStartSlot + dir;
+        if(targetSlot >= 0 && targetSlot < 6){
+          sMoveBottle(sDragStartSlot, targetSlot);
+          sSelectedSlot = targetSlot;
+        }
       }
     }
     sDrag=false; sDragBottle=false; sDragStartSlot=null;
   }
 
-  canvas.addEventListener('mousedown',  e=>onSDown(e.clientX,e.clientY));
-  canvas.addEventListener('touchstart', e=>{onSDown(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+  let sPxStart=0;
+  canvas.addEventListener('mousedown',  e=>{sPxStart=e.clientX; onSDown(e.clientX,e.clientY);});
+  canvas.addEventListener('touchstart', e=>{sPxStart=e.touches[0].clientX; onSDown(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
   window.addEventListener('mouseup',  e=>{ if(shelfViewOpen) onSUp(e.clientX,e.clientY); });
   window.addEventListener('touchend', e=>{ if(shelfViewOpen && e.changedTouches[0]) onSUp(e.changedTouches[0].clientX,e.changedTouches[0].clientY); });
   window.addEventListener('mousemove', e=>onSMove(e.clientX,e.clientY));
@@ -805,8 +830,8 @@ function buildShelf3D(data){
   // Real Haier shelf: 460mm wide × 530mm deep → scale 1u=497mm
   // SW=0.926, SD=1.066 → upscale ×2.4 for display
   const SCALE3=2.4;
-  const SW=0.926*SCALE3, SD=1.066*SCALE3, slatSec2=0.05*SCALE3, slatH2=0.04*SCALE3;
-  const SLATS=10, gap=SW/SLATS;
+  const SW=0.926*SCALE3, SD=1.066*SCALE3, slatSec2=0.0725*SCALE3, slatH2=0.026*SCALE3;
+  const SLATS=6, gap=SW/SLATS;
   const bkZ=-SD/2, frZ=SD/2;
 
   const mWood=new THREE.MeshStandardMaterial({color:0xC8906A,roughness:0.7,metalness:0.0});
@@ -820,36 +845,43 @@ function buildShelf3D(data){
   }
 
   // Front + back rails
-  sb(SW,slatSec2,slatSec2,mEdge, 0,0,frZ-slatSec2/2);
-  sb(SW,slatSec2,slatSec2,mEdge, 0,0,bkZ+slatSec2/2);
+  const railW3D = SW + slatSec2;
+  sb(railW3D, slatH2*2.0, slatSec2*0.30, mEdge, 0, slatH2*0.5, frZ);
+  sb(railW3D, slatH2*1.6, slatSec2*0.18, mEdge, 0, slatH2*0.3, bkZ);
   // Left + right side rails
-  sb(slatSec2,slatH2,SD,mEdge, -SW/2+slatSec2/2,0,0);
-  sb(slatSec2,slatH2,SD,mEdge,  SW/2-slatSec2/2,0,0);
-  // Slats
-  for(let s=0;s<SLATS;s++){
-    const sx=-SW/2+gap/2+s*gap;
-    sb(slatSec2,slatH2,SD,mWood,sx,0,0);
+  // 8 lattes: bords EXACTEMENT aux extrémités de SW
+  for(let s=0; s<8; s++){
+    const t = s / 7;
+    const sx = -SW/2 + t*SW;
+    const sm = (s===0||s===7) ? mEdge : mWood;
+    sb(slatSec2, slatH2, SD, sm, sx, 0, 0);
   }
   // Front label rail
-  sb(SW,0.12,0.05,mEdge, 0,slatH2/2+0.06,frZ+0.03);
-  sb(SW*0.4,0.06,0.004,mLbl, 0,slatH2/2+0.06,frZ+0.056);
 
-  // Bottles — une seule rangée à l'avant, étiquette face caméra, grosses comme sur une vraie clayette
-  const SLOTS=6;
-  const bSpX = SW / SLOTS;
+
+  // 4 bouteilles par rangée, posées dans les rainures entre lattes
+  // 10 lattes = 9 rainures, bouteilles dans les rainures 1,3,5,7 (largement espacées)
+  const SLOTS=4;
+  // 8 slats equally spaced → spacing between centers = SW/7
+  const slatGap3D = SW / 7;
+  // 4 groove centers: between slats 0-1, 2-3, 4-5, 6-7
+  const grooveXs = [1,3,5,7].map(i => -SW/2 + i * slatGap3D);
+  // Bouteilles qui remplissent la rainure — diamètre = 96% de l'espacement
+  const BSCALE = (slatGap3D * 1.08) / 0.12;
   let filled=0;
-
-  // Échelle large : le diamètre du corps occupe la quasi-totalité de la largeur de case
-  const BSCALE = (bSpX * 0.98) / 0.12;
-
-  // Position en profondeur : vers l'avant de la clayette, goulot pointant vers l'arrière
-  const bz = frZ - (0.30*BSCALE) - 0.04;
   const by = slatH2/2;
+  // Cul vers l'avant (frZ) — centre à frZ - demi-longueur bouteille
+  // longueur totale ≈ 0.50 en unités de base
+  // Bouteille couchée: longueur totale ≈ 0.44 unités de base (corps+épaule+col)
+  // On place le cul exactement au rebord avant (frZ)
+  const bottleTotalLen = 0.44 * BSCALE;
+  const halfBottle = 0.29125 * BSCALE;
+  const bz = frZ - halfBottle; // cul ET bouchon touchent le rebord avant selon orientation
 
   for(let col=0; col<SLOTS; col++){
     const idx = col;
     const b = data.bottles[idx] || null;
-    const bx = -SW/2 + bSpX/2 + col*bSpX;
+    const bx = grooveXs[col];
 
     if(b){
       filled++;
@@ -858,19 +890,21 @@ function buildShelf3D(data){
       const lMat=new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
       const g=new THREE.Group();
       const bs=BSCALE;
-      // Couchée, axe du corps le long de Z (profondeur), étiquette vers l'avant/caméra
-      g.rotation.x = Math.PI/2;
-      // Appliquer le flip si la bouteille a été retournée
-      if(sBottleFlipped[col]) g.rotation.y = Math.PI;
-      g.position.set(bx, by + 0.06*bs, bz);
+      // Sans flip: goulot vers rebord avant (IMG_8071)
+      // Avec flip: cul vers rebord avant (IMG_8069) = rotation.x inversée
+      g.rotation.x = -Math.PI/2;
+      g.rotation.x = -Math.PI/2;
+      // Position selon préférence: devant ou fond
+      const bottleZ = (b.position === 'back') ? bkZ + 0.17*bs : frZ - 0.17*bs;
+      g.position.set(bx, by + 0.06*bs, bottleZ);
       const body=new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,16),bMat); body.castShadow=true; g.add(body);
       const sho=new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,16),bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
       const nk=new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,14),bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
       const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,14),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
-      const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.17*bs,16,1,true,-1.0,2.0);
-      const lbl=new THREE.Mesh(lblGeo,lMat); lbl.rotation.y = Math.PI; lbl.position.y=-0.04*bs; g.add(lbl);
+      const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.17*bs,16,1,true,-Math.PI*0.7,Math.PI*1.4);
+      const lbl=new THREE.Mesh(lblGeo,lMat); lbl.rotation.y = 0; lbl.position.y=-0.04*bs; g.add(lbl);
       sGroup.add(g);
-      sBottleMeshes.push({group:g, slotIndex:col});
+      sBottleMeshes.push({group:g, slotIndex:idx});
     } else {
       // Emplacement vide — anneau discret au sol
       const bs2=BSCALE*0.9;
@@ -905,11 +939,14 @@ function openShelfView(shelfObj){
   currentShelfData=data;
   currentShelfIndex=shelfObj.index;
   shelfViewOpen=true;
-  sBottleFlipped={};  // Reset flip states for this shelf
+  // Restore flip states from saved bottle data
+  sBottleFlipped={};
+  // Flip states reset to default (cul vers rebord avant)
+  data.bottles.forEach((b,i) => { if(b) b.flipped = false; sBottleFlipped[i]=false; });
   document.getElementById('shelf-num').textContent=shelfObj.index+1;
-  document.getElementById('shelf-subtitle').textContent=data.label+' · 6 emplacements';
+  document.getElementById('shelf-subtitle').textContent=data.label+' · 4 emplacements';
   if(!sRenderer) initShelfRenderer();
-  sRotX=-0.25; sRotY=0.4; sTRotX=-0.25; sTRotY=0.4;
+  sRotX=1.1; sRotY=0.0; sTRotX=1.1; sTRotY=0.0;
   buildShelf3D(data);
   if(sAnimId) cancelAnimationFrame(sAnimId);
   animateShelf();
@@ -931,6 +968,8 @@ function closeShelfView(){
   document.getElementById('controls').style.filter='';
   document.getElementById('hint').style.filter='';
   document.getElementById('light-wrap').style.filter='';
+  // Mettre à jour immédiatement les bouteilles dans la cave principale
+  renderBottlesInCave();
 }
 
 // ─── Orbit + Shelf drag + double-tap ─────────────────────────────────────────
@@ -1050,7 +1089,15 @@ function animate(){
   camera.position.z=zoom;
   doorAngle+=(tDoor-doorAngle)*0.055;
   doorGroup.rotation.y=doorAngle;
-  shelfGroups.forEach(s=>{s.currentY+=(s.targetY-s.currentY)*0.12;s.group.position.y=s.currentY;});
+  // Animate shelves and re-render bottles only when positions change
+  let _needBottleRender = false;
+  shelfGroups.forEach(s=>{
+    const prev = s.currentY;
+    s.currentY+=(s.targetY-s.currentY)*0.12;
+    s.group.position.y=s.currentY;
+    if(Math.abs(s.currentY-prev)>0.0001) _needBottleRender=true;
+  });
+  if(_needBottleRender) renderBottlesInCave();
   ledT+=dt;
   ledCurrent+=(ledTarget-ledCurrent)*(dt*1.8);
   const flicker=lightOn?ledCurrent*(1.4+Math.sin(ledT*4.1)*0.04+Math.sin(ledT*13.7)*0.018):ledCurrent*1.4;
@@ -1084,28 +1131,32 @@ function renderBottlesInCave(){
   // Supprimer les anciennes bouteilles
   while(caveBottleGroup.children.length) caveBottleGroup.remove(caveBottleGroup.children[0]);
 
-  const SLOTS = 6;
-  const bSpX = shelfW / SLOTS;
-  // Echelle : diamètre ≈ 98% de bSpX, corps = 0.12 de base
-  const BSCALE = (bSpX * 0.92) / 0.12;
+  // 4 rainures × 2 rangées (avant + fond) = 4 emplacements
+  const slatGap = shelfW / 7;
+  const bottleGrooves = [1,3,5,7].map(i => -shelfW/2 + i * slatGap);
+  const BSCALE = (slatGap * 0.88) / 0.12;
   const bs = BSCALE;
+  const caveRowZ = [
+    frontZ2 - 0.17*bs,   // rangée avant
+    backZ   + 0.17*bs    // rangée fond
+  ];
 
   shelfData.forEach((shelf, si) => {
     const shelfObj = shelfGroups[si];
     if(!shelfObj) return;
     const shelfY = shelfObj.currentY;
 
-    shelf.bottles.forEach((b, col) => {
-      if(!col < SLOTS && !b) return;
-      if(col >= SLOTS || !b) return;
+    shelf.bottles.forEach((b, idx) => {
+      if(idx >= 4 || !b) return;
+      const col = idx;
 
-      const bx = -shelfW/2 + bSpX/2 + col*bSpX;
-      const bz = frontZ2 - (0.30*bs) - 0.04;
+      const bx = bottleGrooves[col] !== undefined ? bottleGrooves[col] : 0;
+      const bz = (b.position === 'back') ? backZ + 0.17*bs : frontZ2 - 0.17*bs;
       const by = shelfY + slatH/2 + 0.06*bs;
 
       const bMat = new THREE.MeshStandardMaterial({color:BOTTLE_COLORS_CAVE[b.type]||0x1A0608, roughness:0.12, metalness:0.25, transparent:true, opacity:0.9});
       const cMat = new THREE.MeshStandardMaterial({color:CAPSULE_COLORS_CAVE[b.type]||0x7A1020, roughness:0.3, metalness:0.6});
-      const lMat = new THREE.MeshStandardMaterial({color:0xF0E8D0, roughness:0.85});
+      const lMat = new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
 
       const g = new THREE.Group();
       g.rotation.x = Math.PI/2;
@@ -1115,7 +1166,10 @@ function renderBottlesInCave(){
       const sho  = new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,12), bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
       const nk   = new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,10), bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
       const cap  = new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,10), cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
-      const lbl  = new THREE.Mesh(new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.14*bs,12,1,true,-1.0,2.0), lMat); lbl.position.y=-0.02*bs; g.add(lbl);
+      const lbl  = new THREE.Mesh(new THREE.CylinderGeometry(0.063*bs,0.063*bs,0.18*bs,12,1,true,-Math.PI*0.6,Math.PI*1.2), lMat); 
+      lbl.position.y=-0.02*bs; 
+      lbl.rotation.y = Math.PI; // face toward glass door
+      g.add(lbl);
 
       caveBottleGroup.add(g);
     });
@@ -1152,15 +1206,17 @@ function findFirstEmptySlotIn(si){
 // ── Mode "placement en attente" ──────────────────────────────────────────────
 let pendingBottle = null; // bouteille scannée en attente de placement
 
-function addScannedBottle(wine){
+function addScannedBottle(wine, position){
   // Stocke la bouteille en attente, ouvre la porte, et attend le clic sur une clayette
   pendingBottle = {
     name: wine.name, vintage: wine.vintage, type: wine.type,
-    parker: wine.parker?.score || null, suckling: wine.suckling?.score || null, robinson: wine.robinson?.score || null
+    parker: wine.parker?.score || null, suckling: wine.suckling?.score || null, robinson: wine.robinson?.score || null,
+    position: position || 'front'  // 'front' ou 'back'
   };
   closeScanOverlay();
   if(!doorOpen) toggleDoor();
-  document.getElementById('hint').textContent = '☞ Touche une clayette pour y ranger ta bouteille';
+  const posLabel = pendingBottle.position === 'back' ? 'au fond' : 'devant';
+  document.getElementById('hint').textContent = '☞ Touche une clayette pour y ranger ' + posLabel + ' · Annuler pour changer';
   document.getElementById('placement-wine-name').textContent = (wine.name||'') + (wine.vintage ? ' · '+wine.vintage : '');
   document.getElementById('placement-banner').classList.add('visible');
   return true;
@@ -1318,13 +1374,21 @@ async function handleImageInput(e){
         + vivinoHtml
         + '<div style="background:#221320;border-radius:12px;padding:14px 16px;margin-bottom:18px;">'+scoresHtml+'</div>'
         + '<div style="display:flex;gap:10px;">'
-        + '<button id="confirm-add-bottle" style="flex:1;padding:15px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:14px;font-weight:700;">Ajouter a ma cave</button>'
+        + '<div style="display:flex;flex-direction:column;gap:8px;flex:1;">'
+        + '<button id="confirm-add-front" style="padding:13px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:13px;font-weight:700;">🍷 Ranger devant</button>'
+        + '<button id="confirm-add-back" style="padding:13px;border:none;border-radius:12px;cursor:pointer;background:#2E1A24;color:#E8D5A0;font-family:inherit;font-size:13px;font-weight:700;border:1px solid #7A1A3A40;">📦 Ranger au fond</button>'
+        + '</div>'
         + '<button onclick="closeScanOverlay()" style="padding:15px 18px;border:none;border-radius:12px;cursor:pointer;background:#221320;color:#7A6570;">&#x2715;</button>'
         + '</div>'
       );
 
-      document.getElementById('confirm-add-bottle').onclick = function(){
-        const added = addScannedBottle(wine);
+      document.getElementById('confirm-add-front').onclick = function(){
+        const added = addScannedBottle(wine, 'front');
+        closeScanOverlay();
+        if(!added) alert('Toutes les clayettes sont pleines !');
+      };
+      document.getElementById('confirm-add-back').onclick = function(){
+        const added = addScannedBottle(wine, 'back');
         closeScanOverlay();
         if(!added) alert('Toutes les clayettes sont pleines !');
       };
