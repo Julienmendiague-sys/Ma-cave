@@ -893,10 +893,15 @@ function buildShelf3D(data){
       // Sans flip: goulot vers rebord avant (IMG_8071)
       // Avec flip: cul vers rebord avant (IMG_8069) = rotation.x inversée
       g.rotation.x = -Math.PI/2;
-      g.rotation.x = -Math.PI/2;
-      // Position selon préférence: devant ou fond
-      const bottleZ = (b.position === 'back') ? bkZ + 0.17*bs : frZ - 0.17*bs;
-      g.position.set(bx, by + 0.06*bs, bottleZ);
+      // Sans flip: rangée avant - cul vers rebord avant
+      // Rangée fond: cul vers rebord arrière (rotation inversée)
+      if(b.position === 'back'){
+        g.rotation.x = Math.PI/2;
+        g.position.set(bx, by + 0.06*bs, bkZ + 0.17*bs);
+      } else {
+        g.rotation.x = -Math.PI/2;
+        g.position.set(bx, by + 0.06*bs, frZ - 0.17*bs);
+      }
       const body=new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,16),bMat); body.castShadow=true; g.add(body);
       const sho=new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,16),bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
       const nk=new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,14),bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
@@ -1159,8 +1164,13 @@ function renderBottlesInCave(){
       const lMat = new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
 
       const g = new THREE.Group();
-      g.rotation.x = -Math.PI/2;
-      g.position.set(bx, by, bz);
+      if(b.position === 'back'){
+        g.rotation.x = Math.PI/2;
+        g.position.set(bx, by, backZ + 0.17*bs);
+      } else {
+        g.rotation.x = -Math.PI/2;
+        g.position.set(bx, by, frontZ2 - 0.17*bs);
+      }
 
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,12), bMat); body.castShadow=true; g.add(body);
       const sho  = new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,12), bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
