@@ -907,7 +907,7 @@ function buildShelf3D(data){
       const nk=new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,14),bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
       const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,14),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
       const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.17*bs,16,1,true,-Math.PI*0.7,Math.PI*1.4);
-      const lbl=new THREE.Mesh(lblGeo,lMat); lbl.rotation.y = 0; lbl.position.y=-0.04*bs; g.add(lbl);
+      const lbl=new THREE.Mesh(lblGeo,lMat); lbl.rotation.y = (b.position==='back') ? Math.PI : 0; lbl.position.y=-0.04*bs; g.add(lbl);
       sGroup.add(g);
       sBottleMeshes.push({group:g, slotIndex:idx});
     } else {
@@ -1178,7 +1178,7 @@ function renderBottlesInCave(){
       const cap  = new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,10), cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
       const lbl  = new THREE.Mesh(new THREE.CylinderGeometry(0.063*bs,0.063*bs,0.18*bs,12,1,true,-Math.PI*0.7,Math.PI*1.4), lMat); 
       lbl.position.y=-0.04*bs; 
-      lbl.rotation.y = 0;
+      lbl.rotation.y = (b.position==='back') ? Math.PI : 0;
       g.add(lbl);
 
       caveBottleGroup.add(g);
