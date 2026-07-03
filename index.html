@@ -1159,16 +1159,16 @@ function renderBottlesInCave(){
       const lMat = new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
 
       const g = new THREE.Group();
-      g.rotation.x = Math.PI/2;
+      g.rotation.x = -Math.PI/2;
       g.position.set(bx, by, bz);
 
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,12), bMat); body.castShadow=true; g.add(body);
       const sho  = new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,12), bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
       const nk   = new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,10), bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
       const cap  = new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,10), cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
-      const lbl  = new THREE.Mesh(new THREE.CylinderGeometry(0.063*bs,0.063*bs,0.18*bs,12,1,true,-Math.PI*0.6,Math.PI*1.2), lMat); 
-      lbl.position.y=-0.02*bs; 
-      lbl.rotation.y = Math.PI; // face toward glass door
+      const lbl  = new THREE.Mesh(new THREE.CylinderGeometry(0.063*bs,0.063*bs,0.18*bs,12,1,true,-Math.PI*0.7,Math.PI*1.4), lMat); 
+      lbl.position.y=-0.04*bs; 
+      lbl.rotation.y = 0;
       g.add(lbl);
 
       caveBottleGroup.add(g);
