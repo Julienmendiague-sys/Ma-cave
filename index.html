@@ -174,6 +174,25 @@ canvas { display:block; }
 #shelf-count { font-size: 12px; color: #7A6570; letter-spacing: 0.5px; }
 #shelf-count span { color: #B8952A; font-weight: 700; }
 #shelf-hint { font-size: 10px; color: #3A2A32; letter-spacing: 1px; }
+#btn-delete-bottle {
+  display: none;
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 24px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #5A0A0A;
+  color: #FFB0B0;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  box-shadow: 0 3px 0 #00000060;
+  z-index: 20;
+}
 #placement-banner {
   position: fixed; top: 90px; left: 50%; transform: translateX(-50%) translateY(-20px);
   z-index: 30; background: linear-gradient(135deg, #7A1A3A, #4A0E22);
@@ -284,6 +303,7 @@ canvas { display:block; }
     </div>
     <button id="btn-close-shelf" onclick="closeShelfView()">✕</button>
   </div>
+  <button id="btn-delete-bottle" onclick="deleteSelectedBottle()">🗑 Supprimer la bouteille</button>
   <div id="shelf-bottombar">
     <div id="shelf-count"><span id="fill-count">0</span> / 4 emplacements occupés</div>
     <div id="shelf-hint">☞ Tap pour sélectionner · Glisser pour déplacer</div>
@@ -641,6 +661,22 @@ function sMoveBottle(fromSlot, toSlot){
   buildShelf3D(currentShelfData);
 }
 
+function updateDeleteButtonVisibility(){
+  const btn=document.getElementById('btn-delete-bottle');
+  if(!btn) return;
+  btn.style.display = (sSelectedSlot!==null && currentShelfData && currentShelfData.bottles[sSelectedSlot]) ? 'block' : 'none';
+}
+
+function deleteSelectedBottle(){
+  if(sSelectedSlot===null || !currentShelfData || !currentShelfData.bottles[sSelectedSlot]) return;
+  currentShelfData.bottles[sSelectedSlot] = null;
+  delete sBottleFlipped[sSelectedSlot];
+  saveShelfData();
+  sSelectedSlot = null;
+  updateDeleteButtonVisibility();
+  buildShelf3D(currentShelfData);
+}
+
 function sFlipBottle(slotIdx){
   if(slotIdx===null || slotIdx===undefined) return;
   if(!currentShelfData || !currentShelfData.bottles[slotIdx]) return;
@@ -697,6 +733,7 @@ function initShelfRenderer(){
       if(sSelectedSlot!==null && sSelectedSlot!==hit.slotIndex) sHighlightBottle(sSelectedSlot,false);
       sSelectedSlot=hit.slotIndex;
       sHighlightBottle(sSelectedSlot,true);
+      updateDeleteButtonVisibility();
       // Mémoriser ce tap pour détecter un éventuel double-tap
       if(sPendingTap) clearTimeout(sPendingTap.timer);
       const timer=setTimeout(()=>{ sPendingTap=null; }, 350);
@@ -704,6 +741,7 @@ function initShelfRenderer(){
     } else {
       if(sPendingTap){ clearTimeout(sPendingTap.timer); sPendingTap=null; }
       if(sSelectedSlot!==null){ sHighlightBottle(sSelectedSlot,false); sSelectedSlot=null; }
+      updateDeleteButtonVisibility();
       sDrag=true;
     }
   }
@@ -826,6 +864,7 @@ function buildShelf3D(data){
   sScene.add(sGroup);
   sBottleMeshes=[];
   sSelectedSlot=null;
+  updateDeleteButtonVisibility();
 
   // Real Haier shelf: 460mm wide × 530mm deep → scale 1u=497mm
   // SW=0.926, SD=1.066 → upscale ×2.4 for display
@@ -864,8 +903,8 @@ function buildShelf3D(data){
   const SLOTS=4;
   // 8 slats equally spaced → spacing between centers = SW/7
   const slatGap3D = SW / 7;
-  // 4 groove centers: between slats 0-1, 2-3, 4-5, 6-7
-  const grooveXs = [1,3,5,7].map(i => -SW/2 + i * slatGap3D);
+  // 4 groove centers: milieu entre les paires de lattes (0,1) (2,3) (4,5) (6,7)
+  const grooveXs = [0.5,2.5,4.5,6.5].map(i => -SW/2 + i * slatGap3D);
   // Bouteilles qui remplissent la rainure — diamètre = 96% de l'espacement
   const BSCALE = (slatGap3D * 1.08) / 0.12;
   let filled=0;
@@ -966,6 +1005,8 @@ function openShelfView(shelfObj){
 function closeShelfView(){
   shelfViewOpen=false;
   currentShelfData=null;
+  sSelectedSlot=null;
+  updateDeleteButtonVisibility();
   if(sAnimId){cancelAnimationFrame(sAnimId);sAnimId=null;}
   document.getElementById('shelf-overlay').classList.remove('visible');
   renderer.domElement.style.filter='';
@@ -1138,7 +1179,7 @@ function renderBottlesInCave(){
 
   // 4 rainures × 2 rangées (avant + fond) = 4 emplacements
   const slatGap = shelfW / 7;
-  const bottleGrooves = [1,3,5,7].map(i => -shelfW/2 + i * slatGap);
+  const bottleGrooves = [0.5,2.5,4.5,6.5].map(i => -shelfW/2 + i * slatGap);
   const BSCALE = (slatGap * 0.88) / 0.12;
   const bs = BSCALE;
   const caveRowZ = [
