@@ -213,6 +213,30 @@ canvas { display:block; }
 #shelf-count { font-size: 12px; color: #7A6570; letter-spacing: 0.5px; }
 #shelf-count span { color: #B8952A; font-weight: 700; }
 #shelf-hint { font-size: 10px; color: #3A2A32; letter-spacing: 1px; }
+
+/* Panneau de choix par étapes (étage puis devant/fond) en mode placement */
+#placement-stage-panel {
+  position: absolute; left: 0; right: 0; bottom: 100px; z-index: 15;
+  display: none; flex-direction: column; align-items: center; gap: 10px;
+  padding: 0 24px;
+}
+#placement-stage-panel.visible { display: flex; }
+#placement-stage-panel .stage-label {
+  color: #B8952A; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+}
+#placement-stage-panel .stage-buttons {
+  display: flex; gap: 12px; width: 100%; max-width: 360px;
+}
+#placement-stage-panel button {
+  flex: 1; padding: 16px 10px; border: none; border-radius: 12px; cursor: pointer;
+  font-family: 'Georgia', serif; font-size: 14px; font-weight: 700;
+  background: linear-gradient(135deg,#7A1A3A,#4A0E22); color: #E8D5A0;
+  touch-action: manipulation;
+}
+#placement-stage-panel button.stage-back {
+  flex: 0 0 auto; padding: 16px 18px;
+  background: #2A1520CC; color: #A08090; font-weight: 400; font-size: 13px;
+}
 #btn-delete-bottle {
   display: none;
   position: absolute;
@@ -356,6 +380,7 @@ canvas { display:block; }
     <button id="btn-close-shelf" onclick="closeShelfView()">✕</button>
   </div>
   <button id="btn-delete-bottle" onclick="deleteSelectedBottle()">🗑 Supprimer la bouteille</button>
+  <div id="placement-stage-panel"></div>
   <div id="shelf-bottombar">
     <div id="shelf-count"><span id="fill-count">0</span> / 28 emplacements occupés</div>
     <div id="shelf-hint">☞ Tap pour sélectionner · Glisser pour déplacer</div>
@@ -827,8 +852,12 @@ function initShelfRenderer(){
     // On autorise toujours à tourner la clayette (glisser) ; un tap court sur un
     // emplacement libre le place, ce qui est décidé au relâchement (onSUp).
     if(pendingBottle){
-      sPlacementDownX = clientX; sPlacementDownY = clientY;
-      sPlacementCandidateSlot = sPickSlot(clientX, clientY);
+      if(placementStage === 'tap'){
+        sPlacementDownX = clientX; sPlacementDownY = clientY;
+        sPlacementCandidateSlot = sPickSlot(clientX, clientY);
+      } else {
+        sPlacementCandidateSlot = null;
+      }
       sDrag = true;
       return;
     }
@@ -1165,6 +1194,65 @@ function animateShelf(){
   sRenderer.render(sScene,sCamera);
 }
 
+// ── Placement par étapes dans la clayette zoomée : étage puis devant/fond ────
+let placementStage = null;          // 'level' | 'position' | 'tap' | null
+let placementLevelChoice = null;    // 0 (bas) ou 1 (haut)
+let placementPositionChoice = null; // 'front' ou 'back'
+
+function renderPlacementStagePanel(){
+  const panel = document.getElementById('placement-stage-panel');
+  if(!pendingBottle || !placementStage){
+    panel.classList.remove('visible');
+    panel.innerHTML = '';
+    return;
+  }
+  panel.classList.add('visible');
+  if(placementStage === 'level'){
+    panel.innerHTML =
+      '<div class="stage-label">1 — Choisis l\'étage</div>'
+      + '<div class="stage-buttons">'
+      + '<button onclick="choosePlacementLevel(0)">📍 1er étage (bas)</button>'
+      + '<button onclick="choosePlacementLevel(1)">📍 2e étage (haut)</button>'
+      + '</div>';
+    document.getElementById('shelf-hint').textContent = '☞ Choisis d\'abord l\'étage';
+  } else if(placementStage === 'position'){
+    panel.innerHTML =
+      '<div class="stage-label">2 — Devant ou au fond ?</div>'
+      + '<div class="stage-buttons">'
+      + '<button class="stage-back" onclick="placementStage=\'level\'; renderPlacementStagePanel();">←</button>'
+      + '<button onclick="choosePlacementPosition(\'front\')">🍷 Devant</button>'
+      + '<button onclick="choosePlacementPosition(\'back\')">📦 Au fond</button>'
+      + '</div>';
+    document.getElementById('shelf-hint').textContent = '☞ Choisis devant ou au fond';
+  } else if(placementStage === 'tap'){
+    panel.innerHTML =
+      '<div class="stage-buttons" style="max-width:200px;">'
+      + '<button class="stage-back" onclick="placementStage=\'position\'; renderPlacementStagePanel();">← Changer</button>'
+      + '</div>';
+    document.getElementById('shelf-hint').textContent = '☞ Touche l\'emplacement libre dans cette rangée';
+  }
+}
+
+function choosePlacementLevel(level){
+  placementLevelChoice = level;
+  placementStage = 'position';
+  renderPlacementStagePanel();
+}
+
+function choosePlacementPosition(position){
+  placementPositionChoice = position;
+  placementStage = 'tap';
+  renderPlacementStagePanel();
+}
+
+function resetPlacementStage(){
+  placementStage = null;
+  placementLevelChoice = null;
+  placementPositionChoice = null;
+  const panel = document.getElementById('placement-stage-panel');
+  if(panel){ panel.classList.remove('visible'); panel.innerHTML=''; }
+}
+
 function openShelfView(shelfObj){
   const data=shelfData[shelfObj.index];
   currentShelfData=data;
@@ -1176,13 +1264,13 @@ function openShelfView(shelfObj){
   data.bottles.forEach((b,i) => { if(b) b.flipped = false; sBottleFlipped[i]=false; });
   document.getElementById('shelf-num').textContent=shelfObj.index+1;
   if(pendingBottle){
-    const posLabel = pendingBottle.position === 'back' ? 'au fond' : 'devant';
-    const levelLabel = pendingBottle.level === 1 ? "étage du haut" : "étage du bas";
-    document.getElementById('shelf-subtitle').textContent = 'Touche un emplacement libre — '+posLabel+' · '+levelLabel;
-    document.getElementById('shelf-hint').textContent = '☞ Touche un emplacement libre';
+    document.getElementById('shelf-subtitle').textContent = 'Touche l\'emplacement exact — devant/fond, bas/haut';
+    placementStage = 'level';
+    renderPlacementStagePanel();
   } else {
     document.getElementById('shelf-subtitle').textContent=data.label+' · 28 emplacements';
     document.getElementById('shelf-hint').textContent = '☞ Tap pour sélectionner · Glisser pour déplacer';
+    resetPlacementStage();
   }
   if(!sRenderer) initShelfRenderer();
   sRotX=1.1; sRotY=0.0; sTRotX=1.1; sTRotY=0.0;
@@ -1202,6 +1290,7 @@ function closeShelfView(){
   currentShelfData=null;
   sSelectedSlot=null;
   updateDeleteButtonVisibility();
+  resetPlacementStage();
   if(sAnimId){cancelAnimationFrame(sAnimId);sAnimId=null;}
   document.getElementById('shelf-overlay').classList.remove('visible');
   renderer.domElement.style.filter='';
@@ -1467,35 +1556,27 @@ function openGalleryGuarded(){
   document.getElementById('gallery-input').click();
 }
 
-// Un seul gestionnaire, branché une fois pour toutes, pour les 4 boutons de placement
-// (devant/fond × bas/haut) — plus robuste que de re-brancher un onclick à chaque scan.
+// Un seul bouton "Ajouter à ma cave" — branché une fois pour toutes.
+// Le devant/fond et l'étage sont choisis directement en tapant l'emplacement dans la clayette zoomée.
 document.getElementById('scan-body').addEventListener('click', function(e){
-  console.log('[DEBUG] scan-body click, target=', e.target.tagName, e.target.className);
   const btn = e.target.closest('.confirm-add-btn');
-  console.log('[DEBUG] btn found=', !!btn, 'lastScannedWine=', !!lastScannedWine);
   if(!btn || !lastScannedWine) return;
-  const position = btn.dataset.position;
-  const level = parseInt(btn.dataset.level, 10);
-  const added = addScannedBottle(lastScannedWine, position, level);
-  if(!added) alert('Toutes les clayettes sont pleines !');
+  addScannedBottle(lastScannedWine);
 });
 
-function addScannedBottle(wine, position, level){
-  console.log('[DEBUG] addScannedBottle appelé', position, level);
-  // Stocke la bouteille en attente, ouvre la porte, et attend le clic sur une clayette
+function addScannedBottle(wine){
+  // Stocke la bouteille en attente, ouvre la porte, et attend le tap sur un emplacement de clayette
   pendingBottle = {
     name: wine.name, vintage: wine.vintage, type: wine.type,
     appellation: wine.appellation || '', region: wine.region || '',
     labelImage: wine.labelImage || null, // photo réelle de l'étiquette, si disponible
     parker: wine.parker?.score || null, suckling: wine.suckling?.score || null, robinson: wine.robinson?.score || null,
-    position: position || 'front',  // 'front' ou 'back'
-    level: (level === 1) ? 1 : 0    // 0 = étage bas, 1 = étage haut
+    position: 'front', // valeur par défaut, réellement déterminée par l'emplacement tapé dans la clayette
+    level: 0            // idem
   };
   closeScanOverlay();
   if(!doorOpen) toggleDoor();
-  const posLabel = pendingBottle.position === 'back' ? 'au fond' : 'devant';
-  const levelLabel = pendingBottle.level === 1 ? "à l'étage du haut" : "à l'étage du bas";
-  document.getElementById('hint').textContent = '☞ Touche une clayette pour y ranger ' + posLabel + ' ' + levelLabel + ' · Annuler pour changer';
+  document.getElementById('hint').textContent = '☞ Touche une clayette, puis touche l\'emplacement exact (devant/fond, bas/haut) · Annuler pour changer';
   document.getElementById('placement-wine-name').textContent = (wine.name||'') + (wine.vintage ? ' · '+wine.vintage : '');
   document.getElementById('placement-banner').classList.add('visible');
   return true;
@@ -1535,29 +1616,33 @@ function hasAdjacentBottle(shelf, slotIndex, excludeSlot){
   return false;
 }
 
-// Place la bouteille en attente dans un emplacement précis choisi par l'utilisateur
-// (utilisé depuis la vue clayette zoomée, cf. onSDown dans initShelfRenderer)
+// Place la bouteille en attente dans un emplacement précis choisi par l'utilisateur,
+// une fois l'étage et devant/fond sélectionnés via les boutons de la clayette zoomée.
 function placeBottleAtSlot(slotIndex){
   if(!pendingBottle || !currentShelfData) return false;
   if(currentShelfData.bottles[slotIndex]) return false; // emplacement déjà occupé
 
   const segment = Math.floor(slotIndex/7); // 0=devant bas, 1=fond bas, 2=devant haut, 3=fond haut
-  const tappedIsBack  = (segment % 2 === 1);
-  const tappedLevel   = Math.floor(segment/2);
-  const wantIsBack    = pendingBottle.position === 'back';
-  const wantLevel     = pendingBottle.level === 1 ? 1 : 0;
-  if(tappedIsBack !== wantIsBack || tappedLevel !== wantLevel){
-    const posLabel = wantIsBack ? 'au fond' : 'devant';
-    const levelLabel = wantLevel === 1 ? "à l'étage du haut" : "à l'étage du bas";
-    alert('Cette bouteille doit être rangée ' + posLabel + ' ' + levelLabel + '. Touche un emplacement de cette rangée.');
+  const tappedIsBack = (segment % 2 === 1);
+  const tappedLevel  = Math.floor(segment/2);
+  if(tappedIsBack !== (placementPositionChoice === 'back') || tappedLevel !== placementLevelChoice){
+    const posLabel = placementPositionChoice === 'back' ? 'au fond' : 'devant';
+    const levelLabel = placementLevelChoice === 1 ? "au 2e étage (haut)" : "au 1er étage (bas)";
+    alert('Tu as choisi de la ranger ' + posLabel + ' ' + levelLabel + '. Touche un emplacement de cette rangée.');
     return false;
   }
+
   if(hasAdjacentBottle(currentShelfData, slotIndex)){
     alert('Les bouteilles sont trop larges pour être collées : laisse au moins un emplacement vide entre deux bouteilles.');
     return false;
   }
+
+  pendingBottle.position = placementPositionChoice;
+  pendingBottle.level = placementLevelChoice;
+
   currentShelfData.bottles[slotIndex] = pendingBottle;
   pendingBottle = null;
+  resetPlacementStage();
   document.getElementById('placement-banner').classList.remove('visible');
   document.getElementById('hint').textContent = '☞ Toucher une clayette · Double-tap pour voir les bouteilles';
   updateBottleCount();
@@ -1699,7 +1784,6 @@ function cancelCrop(){
 }
 
 function confirmCrop(){
-  console.log('[DEBUG] confirmCrop() appelé !');
   const file = cropSourceFile;
   let croppedLabelImage = null;
   try{
@@ -1766,7 +1850,6 @@ async function handleImageInput(e){
 
 // Appelé une fois l'étiquette cadrée par l'utilisateur : lance l'analyse du vin
 async function processScannedFile(file, croppedLabelImage){
-  console.trace('[DEBUG] processScannedFile appelé — voici la pile d\'appel :');
   showScanPanel(`
     <div style="text-align:center;padding:40px 0;">
       <div style="font-size:40px;margin-bottom:14px;">&#128269;</div>
@@ -1870,16 +1953,8 @@ async function processScannedFile(file, croppedLabelImage){
         + vivinoHtml
         + '<div style="background:#221320;border-radius:12px;padding:14px 16px;margin-bottom:18px;">'+scoresHtml+'</div>'
         + '<div style="display:flex;gap:10px;">'
-        + '<div style="display:flex;flex-direction:column;gap:8px;flex:1;">'
-        + '<div style="font-size:10px;color:#7A6570;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Position</div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-        + '<button class="confirm-add-btn" data-position="front" data-level="0" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;">🍷 Devant<br>Bas</button>'
-        + '<button class="confirm-add-btn" data-position="front" data-level="1" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;">🍷 Devant<br>Haut</button>'
-        + '<button class="confirm-add-btn" data-position="back" data-level="0" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:#2E1A24;color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;border:1px solid #7A1A3A40;">📦 Fond<br>Bas</button>'
-        + '<button class="confirm-add-btn" data-position="back" data-level="1" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:#2E1A24;color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;border:1px solid #7A1A3A40;">📦 Fond<br>Haut</button>'
-        + '</div>'
-        + '</div>'
-        + '<button onclick="closeScanOverlay()" style="padding:15px 18px;border:none;border-radius:12px;cursor:pointer;background:#221320;color:#7A6570;">&#x2715;</button>'
+        + '<button class="confirm-add-btn" style="flex:1;padding:16px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:14px;font-weight:700;">✓ Ajouter à ma cave</button>'
+        + '<button onclick="closeScanOverlay()" style="padding:16px 18px;border:none;border-radius:12px;cursor:pointer;background:#221320;color:#7A6570;font-family:inherit;font-size:13px;">✕ Ne pas ajouter</button>'
         + '</div>'
       );
 
