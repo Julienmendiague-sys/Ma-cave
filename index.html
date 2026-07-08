@@ -1470,7 +1470,9 @@ function openGalleryGuarded(){
 // Un seul gestionnaire, branché une fois pour toutes, pour les 4 boutons de placement
 // (devant/fond × bas/haut) — plus robuste que de re-brancher un onclick à chaque scan.
 document.getElementById('scan-body').addEventListener('click', function(e){
+  console.log('[DEBUG] scan-body click, target=', e.target.tagName, e.target.className);
   const btn = e.target.closest('.confirm-add-btn');
+  console.log('[DEBUG] btn found=', !!btn, 'lastScannedWine=', !!lastScannedWine);
   if(!btn || !lastScannedWine) return;
   const position = btn.dataset.position;
   const level = parseInt(btn.dataset.level, 10);
@@ -1479,6 +1481,7 @@ document.getElementById('scan-body').addEventListener('click', function(e){
 });
 
 function addScannedBottle(wine, position, level){
+  console.log('[DEBUG] addScannedBottle appelé', position, level);
   // Stocke la bouteille en attente, ouvre la porte, et attend le clic sur une clayette
   pendingBottle = {
     name: wine.name, vintage: wine.vintage, type: wine.type,
@@ -1696,6 +1699,7 @@ function cancelCrop(){
 }
 
 function confirmCrop(){
+  console.log('[DEBUG] confirmCrop() appelé !');
   const file = cropSourceFile;
   let croppedLabelImage = null;
   try{
@@ -1762,6 +1766,7 @@ async function handleImageInput(e){
 
 // Appelé une fois l'étiquette cadrée par l'utilisateur : lance l'analyse du vin
 async function processScannedFile(file, croppedLabelImage){
+  console.trace('[DEBUG] processScannedFile appelé — voici la pile d\'appel :');
   showScanPanel(`
     <div style="text-align:center;padding:40px 0;">
       <div style="font-size:40px;margin-bottom:14px;">&#128269;</div>
