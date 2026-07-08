@@ -702,6 +702,7 @@ let sGroup=null;
 let sBottleMeshes=[];     // [{mesh:Group, slotIndex:int}]
 let sSlotHitboxes=[];     // [{mesh:Mesh, slotIndex:int}] — zones invisibles pour choisir un emplacement
 let sSelectedSlot=null;   // slot index currently selected
+let sPlacementDownX=0, sPlacementDownY=0, sPlacementCandidateSlot=null; // pour distinguer tap (placer) et glissé (tourner) en mode placement
 let sDragBottle=false;    // dragging a bottle
 let sDragStartSlot=null;
 let sLastTapSlot=null, sLastTapTime=0;
@@ -820,17 +821,13 @@ function initShelfRenderer(){
   function onSDown(clientX, clientY){
     sPx=clientX; sPy=clientY; sDrag=false; sDragBottle=false;
 
-    // Mode placement : une bouteille est en attente, un tap choisit l'emplacement exact
+    // Mode placement : une bouteille est en attente.
+    // On autorise toujours à tourner la clayette (glisser) ; un tap court sur un
+    // emplacement libre le place, ce qui est décidé au relâchement (onSUp).
     if(pendingBottle){
-      const slot=sPickSlot(clientX, clientY);
-      if(slot!==null){
-        if(currentShelfData && !currentShelfData.bottles[slot]){
-          placeBottleAtSlot(slot);
-        }
-        // emplacement déjà occupé → on ignore le tap, rien à faire
-      } else {
-        sDrag=true; // tap hors clayette → on peut toujours tourner la vue
-      }
+      sPlacementDownX = clientX; sPlacementDownY = clientY;
+      sPlacementCandidateSlot = sPickSlot(clientX, clientY);
+      sDrag = true;
       return;
     }
 
@@ -876,6 +873,18 @@ function initShelfRenderer(){
   }
 
   function onSUp(clientX, clientY){
+    if(pendingBottle){
+      const totalMove = Math.hypot(clientX-sPlacementDownX, clientY-sPlacementDownY);
+      const TAP_THRESHOLD = 10; // pixels — en dessous, on considère que c'est un tap et non un glissé de rotation
+      if(totalMove < TAP_THRESHOLD && sPlacementCandidateSlot !== null){
+        if(currentShelfData && !currentShelfData.bottles[sPlacementCandidateSlot]){
+          placeBottleAtSlot(sPlacementCandidateSlot);
+        }
+        // emplacement déjà occupé → on ignore le tap, rien à faire
+      }
+      sDrag=false; sDragBottle=false; sDragStartSlot=null; sPlacementCandidateSlot=null;
+      return;
+    }
     if(sDragBottle && sDragStartSlot!==null){
       const totalDX = clientX - sPxStart;
       const THRESHOLD = 60; // pixels minimum pour déclencher le déplacement
