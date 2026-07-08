@@ -994,7 +994,9 @@ function buildShelf3D(data){
     {rowOffset:7, isBack:true,  bz:bzBack}
   ];
   // 2 étages empilés : le niveau haut repose directement sur le niveau bas (même grille de rainures)
-  const bottleDiam = 0.12*BSCALE;
+  // Distance verticale entre les deux étages : légèrement < 1 diamètre pour que la bouteille du haut
+  // repose visuellement SUR celles du bas, sans le moindre espace (léger chevauchement volontaire)
+  const bottleDiam = 0.105*BSCALE;
   const LEVELS = [
     {levelOffset:0,  yBase: by},
     {levelOffset:14, yBase: by + bottleDiam}
@@ -1302,7 +1304,7 @@ function renderBottlesInCave(){
 
       const bx = bottleGrooves[col] !== undefined ? bottleGrooves[col] : 0;
       const bz = isBack ? backZ + 0.17*bs : frontZ2 - 0.17*bs;
-      const by = shelfY + slatH/2 + 0.06*bs + level*(0.12*bs);
+      const by = shelfY + slatH/2 + 0.06*bs + level*(0.105*bs);
 
       const bMat = new THREE.MeshStandardMaterial({color:BOTTLE_COLORS_CAVE[b.type]||0x040101, roughness:0.12, metalness:0.25, transparent:true, opacity:0.95});
       const cMat = new THREE.MeshStandardMaterial({color:CAPSULE_COLORS_CAVE[b.type]||0x7A1020, roughness:0.3, metalness:0.6});
