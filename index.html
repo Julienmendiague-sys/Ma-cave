@@ -1453,6 +1453,18 @@ function findFirstEmptySlotIn(si){
 
 // ── Mode "placement en attente" ──────────────────────────────────────────────
 let pendingBottle = null; // bouteille scannée en attente de placement
+let lastScannedWine = null; // référence au vin scanné, utilisée par le gestionnaire délégué ci-dessous
+
+// Un seul gestionnaire, branché une fois pour toutes, pour les 4 boutons de placement
+// (devant/fond × bas/haut) — plus robuste que de re-brancher un onclick à chaque scan.
+document.getElementById('scan-body').addEventListener('click', function(e){
+  const btn = e.target.closest('.confirm-add-btn');
+  if(!btn || !lastScannedWine) return;
+  const position = btn.dataset.position;
+  const level = parseInt(btn.dataset.level, 10);
+  const added = addScannedBottle(lastScannedWine, position, level);
+  if(!added) alert('Toutes les clayettes sont pleines !');
+});
 
 function addScannedBottle(wine, position, level){
   // Stocke la bouteille en attente, ouvre la porte, et attend le clic sur une clayette
@@ -1774,6 +1786,7 @@ async function processScannedFile(file, croppedLabelImage){
     try{
       const wine = await analyzeWineLabel(b64);
       wine.labelImage = labelImage; // photo réelle rattachée au résultat, pour la texture 3D
+      lastScannedWine = wine; // référence globale utilisée par le gestionnaire délégué des boutons
       const col = '#'+(BCOLS_SCAN[wine.type]||0x040101).toString(16).padStart(6,'0');
 
       // Prix estimé + lien iDealwine
@@ -1842,36 +1855,16 @@ async function processScannedFile(file, croppedLabelImage){
         + '<div style="display:flex;flex-direction:column;gap:8px;flex:1;">'
         + '<div style="font-size:10px;color:#7A6570;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Position</div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-        + '<button id="confirm-add-front-bas" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;">🍷 Devant<br>Bas</button>'
-        + '<button id="confirm-add-front-haut" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;">🍷 Devant<br>Haut</button>'
-        + '<button id="confirm-add-back-bas" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:#2E1A24;color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;border:1px solid #7A1A3A40;">📦 Fond<br>Bas</button>'
-        + '<button id="confirm-add-back-haut" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:#2E1A24;color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;border:1px solid #7A1A3A40;">📦 Fond<br>Haut</button>'
+        + '<button class="confirm-add-btn" data-position="front" data-level="0" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;">🍷 Devant<br>Bas</button>'
+        + '<button class="confirm-add-btn" data-position="front" data-level="1" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;">🍷 Devant<br>Haut</button>'
+        + '<button class="confirm-add-btn" data-position="back" data-level="0" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:#2E1A24;color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;border:1px solid #7A1A3A40;">📦 Fond<br>Bas</button>'
+        + '<button class="confirm-add-btn" data-position="back" data-level="1" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:#2E1A24;color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;border:1px solid #7A1A3A40;">📦 Fond<br>Haut</button>'
         + '</div>'
         + '</div>'
         + '<button onclick="closeScanOverlay()" style="padding:15px 18px;border:none;border-radius:12px;cursor:pointer;background:#221320;color:#7A6570;">&#x2715;</button>'
         + '</div>'
       );
 
-      document.getElementById('confirm-add-front-bas').onclick = function(){
-        const added = addScannedBottle(wine, 'front', 0);
-        closeScanOverlay();
-        if(!added) alert('Toutes les clayettes sont pleines !');
-      };
-      document.getElementById('confirm-add-front-haut').onclick = function(){
-        const added = addScannedBottle(wine, 'front', 1);
-        closeScanOverlay();
-        if(!added) alert('Toutes les clayettes sont pleines !');
-      };
-      document.getElementById('confirm-add-back-bas').onclick = function(){
-        const added = addScannedBottle(wine, 'back', 0);
-        closeScanOverlay();
-        if(!added) alert('Toutes les clayettes sont pleines !');
-      };
-      document.getElementById('confirm-add-back-haut').onclick = function(){
-        const added = addScannedBottle(wine, 'back', 1);
-        closeScanOverlay();
-        if(!added) alert('Toutes les clayettes sont pleines !');
-      };
 
     }catch(err){
       console.error('Scan error:', err);
