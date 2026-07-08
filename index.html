@@ -287,7 +287,7 @@ canvas { display:block; }
 <div id="btn-camera-wrap">
   <!-- Bouton Galerie -->
   <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-    <button id="btn-gallery" onclick="document.getElementById('gallery-input').click()" title="Importer une photo"
+    <button id="btn-gallery" onclick="openGalleryGuarded()" title="Importer une photo"
       style="width:54px;height:54px;border-radius:50%;border:none;cursor:pointer;
         background:#2E1A24;
         box-shadow:0 4px 0 #00000080,0 8px 24px #00000060,inset 0 1px 0 #FFFFFF10;
@@ -302,7 +302,7 @@ canvas { display:block; }
 
   <!-- Bouton Caméra -->
   <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-    <button id="btn-camera" onclick="document.getElementById('camera-input').click()" title="Scanner une étiquette"
+    <button id="btn-camera" onclick="openCameraGuarded()" title="Scanner une étiquette"
       style="width:62px;height:62px;border-radius:31px;border:none;cursor:pointer;
         background:linear-gradient(160deg,#7A1A3A 0%,#4A0E22 100%);
         box-shadow:0 6px 0 #00000080,0 12px 32px #7A1A3A60,0 0 0 4px #080608,0 0 0 5px #B8952A40,inset 0 1px 0 #E8D5A040;
@@ -1456,6 +1456,16 @@ function findFirstEmptySlotIn(si){
 // ── Mode "placement en attente" ──────────────────────────────────────────────
 let pendingBottle = null; // bouteille scannée en attente de placement
 let lastScannedWine = null; // référence au vin scanné, utilisée par le gestionnaire délégué ci-dessous
+let uiActionLockUntil = 0; // horodatage — ignore les taps sur Scanner/Galerie juste après une action de placement
+
+function openCameraGuarded(){
+  if(Date.now() < uiActionLockUntil) return;
+  document.getElementById('camera-input').click();
+}
+function openGalleryGuarded(){
+  if(Date.now() < uiActionLockUntil) return;
+  document.getElementById('gallery-input').click();
+}
 
 // Un seul gestionnaire, branché une fois pour toutes, pour les 4 boutons de placement
 // (devant/fond × bas/haut) — plus robuste que de re-brancher un onclick à chaque scan.
@@ -1558,6 +1568,7 @@ function showScanPanel(html){
 }
 function closeScanOverlay(){
   document.getElementById('scan-overlay').classList.remove('visible');
+  uiActionLockUntil = Date.now() + 600; // évite qu'un tap juste après la fermeture ne relance une action
 }
 
 // ── Outil de cadrage de l'étiquette (avant analyse) ─────────────────────────
