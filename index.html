@@ -82,13 +82,15 @@ canvas { display:block; }
   background: #050308F0;
   opacity: 0; pointer-events: none;
   transition: opacity 0.3s;
+  overflow-y: auto; padding: 24px 0;
 }
 #crop-overlay.visible { opacity: 1; pointer-events: all; }
 #crop-title { color: #E8D5A0; font-size: 14px; letter-spacing: 1px; margin-bottom: 6px; }
 #crop-sub { color: #7A6570; font-size: 11px; margin-bottom: 18px; text-align: center; padding: 0 24px; }
 #crop-frame {
   position: relative; overflow: hidden;
-  width: min(84vw, 420px); aspect-ratio: 1.83 / 1;
+  height: min(56vh, 460px);
+  aspect-ratio: 3 / 4;
   border: 2px solid #B8952A; border-radius: 8px;
   box-shadow: 0 0 0 2000px #050308F0;
   touch-action: none;
@@ -1649,7 +1651,7 @@ function confirmCrop(){
   const sh = Math.min(cropNatH-sy, fh/displayScale);
 
   const outCanvas = document.createElement('canvas');
-  outCanvas.width = 700; outCanvas.height = Math.round(700/1.83);
+  outCanvas.width = 520; outCanvas.height = Math.round(520/0.75); // format vertical 3:4
   const imgEl = document.getElementById('crop-img');
   outCanvas.getContext('2d').drawImage(imgEl, sx, sy, sw, sh, 0, 0, outCanvas.width, outCanvas.height);
   const croppedLabelImage = outCanvas.toDataURL('image/jpeg', 0.78);
