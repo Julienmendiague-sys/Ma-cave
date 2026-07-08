@@ -1580,8 +1580,6 @@ let cropBaseScale = 1, cropScale = 1, cropTx = 0, cropTy = 0;
 const cropPointers = new Map();
 let cropLastPinchDist = null;
 
-let cropReadyAt = 0; // timestamp — protège contre un clic fantôme juste après le retour du sélecteur de photo
-
 async function openCropTool(file){
   cropSourceFile = file;
   const imgEl = document.getElementById('crop-img');
@@ -1614,7 +1612,6 @@ async function openCropTool(file){
   cropScale = 1;
   centerCropImage();
   applyCropTransform();
-  cropReadyAt = Date.now();
 }
 
 function centerCropImage(){
@@ -1699,10 +1696,6 @@ function cancelCrop(){
 }
 
 function confirmCrop(){
-  // Protection anti "clic fantôme" : ignore un tap qui arrive dans les 500ms
-  // suivant l'ouverture du cadrage (souvent un résidu du sélecteur de photo natif)
-  if(Date.now() - cropReadyAt < 500) return;
-
   const file = cropSourceFile;
   let croppedLabelImage = null;
   try{
@@ -1905,4 +1898,4 @@ document.getElementById('camera-input').addEventListener('change', handleImageIn
 document.getElementById('gallery-input').addEventListener('change', handleImageInput);
 </script>
 </body>
-</html> 
+</html>
