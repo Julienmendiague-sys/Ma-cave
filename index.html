@@ -76,6 +76,37 @@ canvas { display:block; }
   position: absolute; inset: 0;
   background: #08060890; backdrop-filter: blur(10px);
 }
+#crop-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: #050308F0;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+}
+#crop-overlay.visible { opacity: 1; pointer-events: all; }
+#crop-title { color: #E8D5A0; font-size: 14px; letter-spacing: 1px; margin-bottom: 6px; }
+#crop-sub { color: #7A6570; font-size: 11px; margin-bottom: 18px; text-align: center; padding: 0 24px; }
+#crop-frame {
+  position: relative; overflow: hidden;
+  width: min(84vw, 420px); aspect-ratio: 1.83 / 1;
+  border: 2px solid #B8952A; border-radius: 8px;
+  box-shadow: 0 0 0 2000px #050308F0;
+  touch-action: none;
+}
+#crop-img {
+  position: absolute; top: 0; left: 0;
+  transform-origin: top left;
+  user-select: none; -webkit-user-drag: none;
+}
+#crop-controls {
+  display: flex; gap: 14px; margin-top: 22px;
+}
+#crop-controls button {
+  padding: 13px 26px; border: none; border-radius: 12px; cursor: pointer;
+  font-family: 'Georgia', serif; font-size: 13px; font-weight: 700;
+}
+#crop-confirm { background: linear-gradient(135deg,#7A1A3A,#4A0E22); color: #E8D5A0; }
+#crop-cancel { background: #221320; color: #7A6570; }
 #scan-panel {
   position: relative; z-index: 2;
   width: min(100%, 480px);
@@ -283,6 +314,19 @@ canvas { display:block; }
   <div id="scan-panel">
     <button id="scan-close" onclick="closeScanOverlay()">✕</button>
     <div id="scan-body"></div>
+  </div>
+</div>
+
+<!-- ── CADRAGE DE L'ÉTIQUETTE ── -->
+<div id="crop-overlay">
+  <div id="crop-title">🏷️ Cadre l'étiquette</div>
+  <div id="crop-sub">Glisse et zoome pour centrer l'étiquette dans le cadre</div>
+  <div id="crop-frame">
+    <img id="crop-img" src="" alt="">
+  </div>
+  <div id="crop-controls">
+    <button id="crop-cancel" onclick="cancelCrop()">Annuler</button>
+    <button id="crop-confirm" onclick="confirmCrop()">✓ Valider</button>
   </div>
 </div>
 
@@ -1487,6 +1531,135 @@ function closeScanOverlay(){
   document.getElementById('scan-overlay').classList.remove('visible');
 }
 
+// ── Outil de cadrage de l'étiquette (avant analyse) ─────────────────────────
+// Permet de sélectionner précisément la zone de l'étiquette dans la photo,
+// pour que la texture 3D affiche l'étiquette seule et non toute la scène.
+let cropSourceFile = null;
+let cropNatW = 0, cropNatH = 0;
+let cropBaseScale = 1, cropScale = 1, cropTx = 0, cropTy = 0;
+const cropPointers = new Map();
+let cropLastPinchDist = null;
+
+function openCropTool(file){
+  cropSourceFile = file;
+  const imgEl = document.getElementById('crop-img');
+  const url = URL.createObjectURL(file);
+  imgEl.onload = () => {
+    cropNatW = imgEl.naturalWidth; cropNatH = imgEl.naturalHeight;
+    const frame = document.getElementById('crop-frame');
+    const fw = frame.clientWidth, fh = frame.clientHeight;
+    cropBaseScale = Math.max(fw/cropNatW, fh/cropNatH);
+    cropScale = 1; cropTx = 0; cropTy = 0;
+    centerCropImage();
+    applyCropTransform();
+  };
+  imgEl.src = url;
+  document.getElementById('crop-overlay').classList.add('visible');
+}
+
+function centerCropImage(){
+  const frame = document.getElementById('crop-frame');
+  const fw = frame.clientWidth, fh = frame.clientHeight;
+  const displayScale = cropBaseScale*cropScale;
+  cropTx = (fw - cropNatW*displayScale)/2;
+  cropTy = (fh - cropNatH*displayScale)/2;
+}
+
+function clampCropPan(){
+  const frame = document.getElementById('crop-frame');
+  const fw = frame.clientWidth, fh = frame.clientHeight;
+  const displayScale = cropBaseScale*cropScale;
+  const dispW = cropNatW*displayScale, dispH = cropNatH*displayScale;
+  const minTx = Math.min(0, fw-dispW), maxTx = 0;
+  const minTy = Math.min(0, fh-dispH), maxTy = 0;
+  cropTx = Math.max(minTx, Math.min(maxTx, cropTx));
+  cropTy = Math.max(minTy, Math.min(maxTy, cropTy));
+}
+
+function applyCropTransform(){
+  const displayScale = cropBaseScale*cropScale;
+  const img = document.getElementById('crop-img');
+  img.style.width = (cropNatW*displayScale)+'px';
+  img.style.height = (cropNatH*displayScale)+'px';
+  img.style.left = cropTx+'px';
+  img.style.top = cropTy+'px';
+}
+
+function cropPointerDist(){
+  const pts = Array.from(cropPointers.values());
+  return Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+}
+
+(function setupCropHandlers(){
+  const frame = document.getElementById('crop-frame');
+  frame.addEventListener('pointerdown', e => {
+    frame.setPointerCapture(e.pointerId);
+    cropPointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if(cropPointers.size === 2) cropLastPinchDist = cropPointerDist();
+  });
+  frame.addEventListener('pointermove', e => {
+    if(!cropPointers.has(e.pointerId)) return;
+    const prev = cropPointers.get(e.pointerId);
+    const cur = {x:e.clientX, y:e.clientY};
+    if(cropPointers.size === 2){
+      cropPointers.set(e.pointerId, cur);
+      const d = cropPointerDist();
+      if(cropLastPinchDist){
+        const factor = d / cropLastPinchDist;
+        cropScale = Math.max(1, Math.min(4, cropScale*factor));
+      }
+      cropLastPinchDist = d;
+      clampCropPan();
+      applyCropTransform();
+    } else if(cropPointers.size === 1){
+      cropTx += cur.x - prev.x;
+      cropTy += cur.y - prev.y;
+      cropPointers.set(e.pointerId, cur);
+      clampCropPan();
+      applyCropTransform();
+    }
+  });
+  function releasePointer(e){
+    cropPointers.delete(e.pointerId);
+    if(cropPointers.size < 2) cropLastPinchDist = null;
+  }
+  frame.addEventListener('pointerup', releasePointer);
+  frame.addEventListener('pointercancel', releasePointer);
+  frame.addEventListener('wheel', e => {
+    e.preventDefault();
+    cropScale = Math.max(1, Math.min(4, cropScale - e.deltaY*0.0015));
+    clampCropPan();
+    applyCropTransform();
+  }, {passive:false});
+})();
+
+function cancelCrop(){
+  document.getElementById('crop-overlay').classList.remove('visible');
+  cropSourceFile = null;
+}
+
+function confirmCrop(){
+  const frame = document.getElementById('crop-frame');
+  const fw = frame.clientWidth, fh = frame.clientHeight;
+  const displayScale = cropBaseScale*cropScale;
+  // Rectangle sélectionné, exprimé dans les pixels de la photo d'origine
+  const sx = Math.max(0, -cropTx/displayScale);
+  const sy = Math.max(0, -cropTy/displayScale);
+  const sw = Math.min(cropNatW-sx, fw/displayScale);
+  const sh = Math.min(cropNatH-sy, fh/displayScale);
+
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = 700; outCanvas.height = Math.round(700/1.83);
+  const imgEl = document.getElementById('crop-img');
+  outCanvas.getContext('2d').drawImage(imgEl, sx, sy, sw, sh, 0, 0, outCanvas.width, outCanvas.height);
+  const croppedLabelImage = outCanvas.toDataURL('image/jpeg', 0.78);
+
+  document.getElementById('crop-overlay').classList.remove('visible');
+  const file = cropSourceFile;
+  cropSourceFile = null;
+  processScannedFile(file, croppedLabelImage);
+}
+
 // Compress/resize image before sending — iPhone camera photos can be 5-10MB,
 // which likely causes the API request to be rejected or malformed.
 function compressImage(file, maxDim=1200, quality=0.82){
@@ -1520,7 +1693,11 @@ async function handleImageInput(e){
   const file = e.target.files[0];
   if(!file) return;
   e.target.value = '';
+  openCropTool(file);
+}
 
+// Appelé une fois l'étiquette cadrée par l'utilisateur : lance l'analyse du vin
+async function processScannedFile(file, croppedLabelImage){
   showScanPanel(`
     <div style="text-align:center;padding:40px 0;">
       <div style="font-size:40px;margin-bottom:14px;">&#128269;</div>
@@ -1541,16 +1718,8 @@ async function handleImageInput(e){
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     const b64 = canvas.toDataURL('image/jpeg', 0.75).split(',')[1];
 
-    // Miniature de la photo réelle, utilisée comme texture d'étiquette sur la bouteille 3D
-    // (taille réduite pour rester raisonnable dans le stockage local)
-    const tCanvas = document.createElement('canvas');
-    const TMAX = 380;
-    let tw = img.width, th = img.height;
-    if(tw > th){ if(tw > TMAX){ th = Math.round(th*TMAX/tw); tw = TMAX; } }
-    else       { if(th > TMAX){ tw = Math.round(tw*TMAX/th); th = TMAX; } }
-    tCanvas.width = tw; tCanvas.height = th;
-    tCanvas.getContext('2d').drawImage(img, 0, 0, tw, th);
-    const labelImage = tCanvas.toDataURL('image/jpeg', 0.62);
+    // Étiquette cadrée manuellement par l'utilisateur = texture 3D exacte de la bouteille
+    const labelImage = croppedLabelImage;
 
     try{
       const wine = await analyzeWineLabel(b64);
