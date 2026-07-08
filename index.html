@@ -1132,7 +1132,7 @@ function buildShelf3D(data){
 
         // Zone tactile invisible — couvre uniquement la moitié avant ou fond du slot,
         // pour distinguer les deux emplacements lors du placement d'une bouteille en attente
-        const hitGeo=new THREE.PlaneGeometry(slatGap3D*0.95, SD*0.45);
+        const hitGeo=new THREE.PlaneGeometry(slatGap3D*0.98, SD*0.48);
         const hitMat=new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0, depthWrite:false});
         const hitMesh=new THREE.Mesh(hitGeo, hitMat);
         hitMesh.rotation.x=-Math.PI/2;
@@ -1164,18 +1164,22 @@ function buildShelf3D(data){
           sGroup.add(g);
           sBottleMeshes.push({group:g, slotIndex:idx});
         } else {
-          // Emplacement vide — anneau discret au sol (ou sur le dessus des bouteilles du niveau bas)
-          const bs2=BSCALE*0.9;
-          const ringMat=new THREE.MeshStandardMaterial({
-            color:0x4A3540, roughness:1.0, metalness:0.0,
-            transparent:true, opacity:0.18, side:THREE.DoubleSide
-          });
-          const ringGeo=new THREE.RingGeometry(0.05*bs2, 0.062*bs2, 24);
-          const ring=new THREE.Mesh(ringGeo, ringMat);
-          ring.rotation.x=-Math.PI/2;
-          ring.position.set(bx, level.yBase+0.002, row.bz);
-          ring.castShadow=false; ring.receiveShadow=false;
-          sGroup.add(ring);
+          // Emplacement vide — anneau visible seulement quand on ajoute ou déplace une bouteille
+          const showRing = !!pendingBottle || sSelectedSlot !== null;
+          if(showRing){
+            const bs2=BSCALE*0.9;
+            const ringMat=new THREE.MeshStandardMaterial({
+              color:0x4A3540, roughness:1.0, metalness:0.0,
+              transparent:true, opacity:0.22, side:THREE.DoubleSide
+            });
+            // Anneau discret mais zone tactile généreuse (cf. hitGeo ci-dessus)
+            const ringGeo=new THREE.RingGeometry(0.05*bs2, 0.062*bs2, 24);
+            const ring=new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x=-Math.PI/2;
+            ring.position.set(bx, level.yBase+0.002, row.bz);
+            ring.castShadow=false; ring.receiveShadow=false;
+            sGroup.add(ring);
+          }
         }
       });
     }
@@ -1209,40 +1213,26 @@ function renderPlacementStagePanel(){
   panel.classList.add('visible');
   if(placementStage === 'level'){
     panel.innerHTML =
-      '<div class="stage-label">1 — Choisis l\'étage</div>'
+      '<div class="stage-label">Choisis l\'étage</div>'
       + '<div class="stage-buttons">'
       + '<button onclick="choosePlacementLevel(0)">📍 1er étage (bas)</button>'
       + '<button onclick="choosePlacementLevel(1)">📍 2e étage (haut)</button>'
       + '</div>';
     document.getElementById('shelf-hint').textContent = '☞ Choisis d\'abord l\'étage';
-  } else if(placementStage === 'position'){
-    panel.innerHTML =
-      '<div class="stage-label">2 — Devant ou au fond ?</div>'
-      + '<div class="stage-buttons">'
-      + '<button class="stage-back" onclick="placementStage=\'level\'; renderPlacementStagePanel();">←</button>'
-      + '<button onclick="choosePlacementPosition(\'front\')">🍷 Devant</button>'
-      + '<button onclick="choosePlacementPosition(\'back\')">📦 Au fond</button>'
-      + '</div>';
-    document.getElementById('shelf-hint').textContent = '☞ Choisis devant ou au fond';
   } else if(placementStage === 'tap'){
     panel.innerHTML =
       '<div class="stage-buttons" style="max-width:200px;">'
-      + '<button class="stage-back" onclick="placementStage=\'position\'; renderPlacementStagePanel();">← Changer</button>'
+      + '<button class="stage-back" onclick="placementStage=\'level\'; renderPlacementStagePanel();">← Changer d\'étage</button>'
       + '</div>';
-    document.getElementById('shelf-hint').textContent = '☞ Touche l\'emplacement libre dans cette rangée';
+    document.getElementById('shelf-hint').textContent = '☞ Touche l\'emplacement — devant ou au fond';
   }
 }
 
 function choosePlacementLevel(level){
   placementLevelChoice = level;
-  placementStage = 'position';
-  renderPlacementStagePanel();
-}
-
-function choosePlacementPosition(position){
-  placementPositionChoice = position;
   placementStage = 'tap';
   renderPlacementStagePanel();
+  if(currentShelfData) buildShelf3D(currentShelfData);
 }
 
 function resetPlacementStage(){
@@ -1625,10 +1615,9 @@ function placeBottleAtSlot(slotIndex){
   const segment = Math.floor(slotIndex/7); // 0=devant bas, 1=fond bas, 2=devant haut, 3=fond haut
   const tappedIsBack = (segment % 2 === 1);
   const tappedLevel  = Math.floor(segment/2);
-  if(tappedIsBack !== (placementPositionChoice === 'back') || tappedLevel !== placementLevelChoice){
-    const posLabel = placementPositionChoice === 'back' ? 'au fond' : 'devant';
+  if(tappedLevel !== placementLevelChoice){
     const levelLabel = placementLevelChoice === 1 ? "au 2e étage (haut)" : "au 1er étage (bas)";
-    alert('Tu as choisi de la ranger ' + posLabel + ' ' + levelLabel + '. Touche un emplacement de cette rangée.');
+    alert('Tu as choisi de la ranger ' + levelLabel + '. Touche un emplacement de cet étage.');
     return false;
   }
 
@@ -1637,7 +1626,7 @@ function placeBottleAtSlot(slotIndex){
     return false;
   }
 
-  pendingBottle.position = placementPositionChoice;
+  pendingBottle.position = tappedIsBack ? 'back' : 'front';
   pendingBottle.level = placementLevelChoice;
 
   currentShelfData.bottles[slotIndex] = pendingBottle;
@@ -1978,4 +1967,4 @@ document.getElementById('camera-input').addEventListener('change', handleImageIn
 document.getElementById('gallery-input').addEventListener('change', handleImageInput);
 </script>
 </body>
-</html> 
+</html>
