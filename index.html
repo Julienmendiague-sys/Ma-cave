@@ -609,6 +609,7 @@ let sGroup=null;
 
 // Bottle interaction state
 let sBottleMeshes=[];     // [{mesh:Group, slotIndex:int}]
+let sSlotHitboxes=[];     // [{mesh:Mesh, slotIndex:int}] — zones invisibles pour choisir un emplacement
 let sSelectedSlot=null;   // slot index currently selected
 let sDragBottle=false;    // dragging a bottle
 let sDragStartSlot=null;
@@ -621,6 +622,17 @@ const CCOLS3={rouge:0x7A1020, blanc:0xB09018, rosé:0xB06070, pétillant:0x20308
 // Raycaster pour la scène clayette
 const sRaycaster=new THREE.Raycaster();
 const sMouse=new THREE.Vector2();
+
+function sPickSlot(clientX, clientY){
+  if(!sCamera || !sSlotHitboxes.length) return null;
+  sMouse.x=(clientX/innerWidth)*2-1;
+  sMouse.y=-(clientY/innerHeight)*2+1;
+  sRaycaster.setFromCamera(sMouse, sCamera);
+  const hits=sRaycaster.intersectObjects(sSlotHitboxes.map(s=>s.mesh), false);
+  if(!hits.length) return null;
+  const found=sSlotHitboxes.find(s=>s.mesh===hits[0].object);
+  return found ? found.slotIndex : null;
+}
 
 function sPickBottle(clientX, clientY){
   if(!sCamera || !sBottleMeshes.length) return null;
@@ -716,6 +728,21 @@ function initShelfRenderer(){
 
   function onSDown(clientX, clientY){
     sPx=clientX; sPy=clientY; sDrag=false; sDragBottle=false;
+
+    // Mode placement : une bouteille est en attente, un tap choisit l'emplacement exact
+    if(pendingBottle){
+      const slot=sPickSlot(clientX, clientY);
+      if(slot!==null){
+        if(currentShelfData && !currentShelfData.bottles[slot]){
+          placeBottleAtSlot(slot);
+        }
+        // emplacement déjà occupé → on ignore le tap, rien à faire
+      } else {
+        sDrag=true; // tap hors clayette → on peut toujours tourner la vue
+      }
+      return;
+    }
+
     const hit=sPickBottle(clientX, clientY);
     if(hit){
       const now=Date.now();
@@ -863,6 +890,7 @@ function buildShelf3D(data){
   sGroup=new THREE.Group();
   sScene.add(sGroup);
   sBottleMeshes=[];
+  sSlotHitboxes=[];
   sSelectedSlot=null;
   updateDeleteButtonVisibility();
 
@@ -921,6 +949,16 @@ function buildShelf3D(data){
     const idx = col;
     const b = data.bottles[idx] || null;
     const bx = grooveXs[col];
+
+    // Zone tactile invisible couvrant toute la profondeur du slot (avant + fond),
+    // utilisée pour choisir l'emplacement exact lors du placement d'une bouteille en attente
+    const hitGeo=new THREE.PlaneGeometry(slatGap3D*1.3, SD*0.95);
+    const hitMat=new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0, depthWrite:false});
+    const hitMesh=new THREE.Mesh(hitGeo, hitMat);
+    hitMesh.rotation.x=-Math.PI/2;
+    hitMesh.position.set(bx, slatH2/2+0.08, 0);
+    sGroup.add(hitMesh);
+    sSlotHitboxes.push({mesh:hitMesh, slotIndex:idx});
 
     if(b){
       filled++;
@@ -988,7 +1026,14 @@ function openShelfView(shelfObj){
   // Flip states reset to default (cul vers rebord avant)
   data.bottles.forEach((b,i) => { if(b) b.flipped = false; sBottleFlipped[i]=false; });
   document.getElementById('shelf-num').textContent=shelfObj.index+1;
-  document.getElementById('shelf-subtitle').textContent=data.label+' · 4 emplacements';
+  if(pendingBottle){
+    const posLabel = pendingBottle.position === 'back' ? 'au fond' : 'devant';
+    document.getElementById('shelf-subtitle').textContent = 'Touche un emplacement libre pour ranger ta bouteille ('+posLabel+')';
+    document.getElementById('shelf-hint').textContent = '☞ Touche un emplacement libre';
+  } else {
+    document.getElementById('shelf-subtitle').textContent=data.label+' · 4 emplacements';
+    document.getElementById('shelf-hint').textContent = '☞ Tap pour sélectionner · Glisser pour déplacer';
+  }
   if(!sRenderer) initShelfRenderer();
   sRotX=1.1; sRotY=0.0; sTRotX=1.1; sTRotY=0.0;
   buildShelf3D(data);
@@ -1036,9 +1081,9 @@ function onPointerDown(clientX,clientY){
   px=clientX; py=clientY; drag=false;
   const hit=doorOpen?pickShelf(clientX,clientY):null;
   if(hit){
-    // Mode placement de bouteille en attente : un tap place la bouteille
+    // Mode placement de bouteille en attente : ouvrir la clayette zoomée pour choisir l'emplacement exact
     if(pendingBottle){
-      placeBottleOnShelf(hit.index);
+      openShelfView(hit);
       return;
     }
     // Double-tap detection
@@ -1293,6 +1338,20 @@ function placeBottleOnShelf(shelfIndex){
   pendingBottle = null;
   document.getElementById('placement-banner').classList.remove('visible');
   document.getElementById('hint').textContent = '☞ Toucher une clayette · Double-tap pour voir les bouteilles';
+  return true;
+}
+
+// Place la bouteille en attente dans un emplacement précis choisi par l'utilisateur
+// (utilisé depuis la vue clayette zoomée, cf. onSDown dans initShelfRenderer)
+function placeBottleAtSlot(slotIndex){
+  if(!pendingBottle || !currentShelfData) return false;
+  if(currentShelfData.bottles[slotIndex]) return false; // emplacement déjà occupé
+  currentShelfData.bottles[slotIndex] = pendingBottle;
+  pendingBottle = null;
+  document.getElementById('placement-banner').classList.remove('visible');
+  document.getElementById('hint').textContent = '☞ Toucher une clayette · Double-tap pour voir les bouteilles';
+  updateBottleCount();
+  closeShelfView();
   return true;
 }
 
