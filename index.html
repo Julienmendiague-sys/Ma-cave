@@ -299,13 +299,13 @@ canvas { display:block; }
   <div id="shelf-topbar">
     <div>
       <div id="shelf-title">Clayette nº<span id="shelf-num">1</span></div>
-      <div id="shelf-subtitle">8 emplacements</div>
+      <div id="shelf-subtitle">14 emplacements</div>
     </div>
     <button id="btn-close-shelf" onclick="closeShelfView()">✕</button>
   </div>
   <button id="btn-delete-bottle" onclick="deleteSelectedBottle()">🗑 Supprimer la bouteille</button>
   <div id="shelf-bottombar">
-    <div id="shelf-count"><span id="fill-count">0</span> / 8 emplacements occupés</div>
+    <div id="shelf-count"><span id="fill-count">0</span> / 14 emplacements occupés</div>
     <div id="shelf-hint">☞ Tap pour sélectionner · Glisser pour déplacer</div>
   </div>
 
@@ -446,10 +446,40 @@ const shelfGroups=[];
 const shelfData = Array.from({length:SHELF_COUNT}, (_,i)=>({
   index: i,
   label: `Clayette nº${i+1}`,
-  bottles: Array(8).fill(null) // 0-3 = devant, 4-7 = fond (même colonne : idx%4)
+  bottles: Array(14).fill(null) // 0-6 = devant, 7-13 = fond (une rainure entre chaque latte)
 }));
 
 // ── Persistence: bouteilles dans les clayettes ──────────────────────────────
+// Convertit un tableau de bouteilles sauvegardé (ancien format 4 ou 8 emplacements)
+// vers le format actuel à 14 emplacements (7 devant + 7 fond, une rainure par latte).
+function migrateBottlesArray(bottles){
+  if(!Array.isArray(bottles)) return Array(14).fill(null);
+  if(bottles.length >= 14) return bottles.slice(0,14).concat(Array(Math.max(0,14-bottles.length)).fill(null));
+
+  // Étape 1 : normaliser vers l'ancien format 8 emplacements (4 devant + 4 fond)
+  let eight;
+  if(bottles.length <= 4){
+    // Tout premier format : 4 emplacements partagés devant/fond via b.position
+    eight = Array(8).fill(null);
+    bottles.forEach((b, idx) => {
+      if(!b) return;
+      const target = (b.position === 'back') ? idx+4 : idx;
+      eight[target] = b;
+    });
+  } else {
+    eight = Array(8).fill(null);
+    for(let i=0;i<8;i++) eight[i] = bottles[i] || null;
+  }
+
+  // Étape 2 : chaque ancienne colonne (0-3) occupait 1 rainure sur 2 → nouvelle position = 2×colonne
+  const fourteen = Array(14).fill(null);
+  for(let c=0;c<4;c++){
+    if(eight[c])   fourteen[2*c]   = eight[c];   // devant
+    if(eight[c+4]) fourteen[7+2*c] = eight[c+4]; // fond
+  }
+  return fourteen;
+}
+
 function loadShelfData(){
   try{
     const raw = localStorage.getItem('ma-cave-bottles');
@@ -457,18 +487,7 @@ function loadShelfData(){
       const saved = JSON.parse(raw);
       saved.forEach((bottles, i) => {
         if(shelfData[i] && Array.isArray(bottles)){
-          if(bottles.length <= 4){
-            // Ancien format : 4 emplacements partagés devant/fond → migration vers 8 (4 devant + 4 fond)
-            const migrated = Array(8).fill(null);
-            bottles.forEach((b, idx) => {
-              if(!b) return;
-              const target = (b.position === 'back') ? idx+4 : idx;
-              migrated[target] = b;
-            });
-            shelfData[i].bottles = migrated;
-          } else {
-            shelfData[i].bottles = bottles;
-          }
+          shelfData[i].bottles = migrateBottlesArray(bottles);
         }
       });
       return true; // données restaurées
@@ -494,7 +513,7 @@ const WINES_STOCK = hadSavedBottles ? [] : [
 let _slot=0;
 WINES_STOCK.forEach(w=>{
   for(let q=0;q<w.quantity;q++){
-    const si=Math.floor(_slot/4), bi=_slot%4;
+    const si=Math.floor(_slot/7), bi=_slot%7;
     if(si<shelfData.length) shelfData[si].bottles[bi]={name:w.name,vintage:w.vintage,type:w.type,parker:w.parker,suckling:w.suckling,robinson:w.robinson};
     _slot++;
   }
@@ -804,8 +823,8 @@ function initShelfRenderer(){
       if(Math.abs(totalDX) > THRESHOLD){
         const dir = totalDX > 0 ? 1 : -1;
         const targetSlot = sDragStartSlot + dir;
-        const rowStart = Math.floor(sDragStartSlot/4)*4;
-        const rowEnd = rowStart+4;
+        const rowStart = Math.floor(sDragStartSlot/7)*7;
+        const rowEnd = rowStart+7;
         if(targetSlot >= rowStart && targetSlot < rowEnd){
           sMoveBottle(sDragStartSlot, targetSlot);
           sSelectedSlot = targetSlot;
@@ -941,15 +960,14 @@ function buildShelf3D(data){
   // Front label rail
 
 
-  // 4 bouteilles par rangée, posées dans les rainures entre lattes
-  // 10 lattes = 9 rainures, bouteilles dans les rainures 1,3,5,7 (largement espacées)
-  const SLOTS=4;
+  // 7 bouteilles par rangée, une rainure entre chaque paire de lattes adjacentes
+  const SLOTS=7;
   // 8 slats equally spaced → spacing between centers = SW/7
   const slatGap3D = SW / 7;
-  // 4 groove centers: milieu entre les paires de lattes (0,1) (2,3) (4,5) (6,7)
-  const grooveXs = [0.5,2.5,4.5,6.5].map(i => -SW/2 + i * slatGap3D);
-  // Bouteilles qui remplissent la rainure — diamètre = 96% de l'espacement
-  const BSCALE = (slatGap3D * 1.08) / 0.12;
+  // 7 groove centers : entre chaque paire de lattes adjacentes (0-1, 1-2, 2-3, ... 6-7)
+  const grooveXs = [0.5,1.5,2.5,3.5,4.5,5.5,6.5].map(i => -SW/2 + i * slatGap3D);
+  // Bouteilles jointives dans des rainures contiguës — diamètre légèrement < l'espacement pour ne pas se chevaucher
+  const BSCALE = (slatGap3D * 0.92) / 0.12;
   let filled=0;
   const by = slatH2/2;
   // Cul vers l'avant (frZ) — centre à frZ - demi-longueur bouteille
@@ -961,10 +979,10 @@ function buildShelf3D(data){
   const bzFront = frZ - halfBottle; // cul ET bouchon touchent le rebord avant selon orientation
   const bzBack  = bkZ + halfBottle; // même logique, côté rebord arrière
 
-  // Chaque colonne a 2 emplacements indépendants : devant (idx 0-3) et fond (idx 4-7)
+  // Chaque colonne a 2 emplacements indépendants : devant (idx 0-6) et fond (idx 7-13)
   const ROWS = [
     {rowOffset:0, isBack:false, bz:bzFront},
-    {rowOffset:4, isBack:true,  bz:bzBack}
+    {rowOffset:7, isBack:true,  bz:bzBack}
   ];
 
   for(let col=0; col<SLOTS; col++){
@@ -976,7 +994,7 @@ function buildShelf3D(data){
 
       // Zone tactile invisible — couvre uniquement la moitié avant ou fond du slot,
       // pour distinguer les deux emplacements lors du placement d'une bouteille en attente
-      const hitGeo=new THREE.PlaneGeometry(slatGap3D*1.3, SD*0.45);
+      const hitGeo=new THREE.PlaneGeometry(slatGap3D*0.95, SD*0.45);
       const hitMat=new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0, depthWrite:false});
       const hitMesh=new THREE.Mesh(hitGeo, hitMat);
       hitMesh.rotation.x=-Math.PI/2;
@@ -1050,7 +1068,7 @@ function openShelfView(shelfObj){
     document.getElementById('shelf-subtitle').textContent = 'Touche un emplacement libre — devant ou au fond';
     document.getElementById('shelf-hint').textContent = '☞ Touche un emplacement libre';
   } else {
-    document.getElementById('shelf-subtitle').textContent=data.label+' · 8 emplacements';
+    document.getElementById('shelf-subtitle').textContent=data.label+' · 14 emplacements';
     document.getElementById('shelf-hint').textContent = '☞ Tap pour sélectionner · Glisser pour déplacer';
   }
   if(!sRenderer) initShelfRenderer();
@@ -1241,10 +1259,10 @@ function renderBottlesInCave(){
   // Supprimer les anciennes bouteilles
   while(caveBottleGroup.children.length) caveBottleGroup.remove(caveBottleGroup.children[0]);
 
-  // 4 rainures × 2 rangées (avant + fond) = 4 emplacements
+  // 7 rainures × 2 rangées (avant + fond) = 14 emplacements
   const slatGap = shelfW / 7;
-  const bottleGrooves = [0.5,2.5,4.5,6.5].map(i => -shelfW/2 + i * slatGap);
-  const BSCALE = (slatGap * 0.88) / 0.12;
+  const bottleGrooves = [0.5,1.5,2.5,3.5,4.5,5.5,6.5].map(i => -shelfW/2 + i * slatGap);
+  const BSCALE = (slatGap * 0.90) / 0.12;
   const bs = BSCALE;
   const caveRowZ = [
     frontZ2 - 0.17*bs,   // rangée avant
@@ -1258,8 +1276,8 @@ function renderBottlesInCave(){
 
     shelf.bottles.forEach((b, idx) => {
       if(!b) return;
-      const col = idx % 4;
-      const isBack = idx >= 4;
+      const col = idx % 7;
+      const isBack = idx >= 7;
 
       const bx = bottleGrooves[col] !== undefined ? bottleGrooves[col] : 0;
       const bz = isBack ? backZ + 0.17*bs : frontZ2 - 0.17*bs;
@@ -1366,7 +1384,7 @@ function placeBottleOnShelf(shelfIndex){
 function placeBottleAtSlot(slotIndex){
   if(!pendingBottle || !currentShelfData) return false;
   if(currentShelfData.bottles[slotIndex]) return false; // emplacement déjà occupé
-  pendingBottle.position = (slotIndex >= 4) ? 'back' : 'front';
+  pendingBottle.position = (slotIndex >= 7) ? 'back' : 'front';
   currentShelfData.bottles[slotIndex] = pendingBottle;
   pendingBottle = null;
   document.getElementById('placement-banner').classList.remove('visible');
