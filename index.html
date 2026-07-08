@@ -857,33 +857,34 @@ function initShelfRenderer(){
 
 // ── Génère une étiquette texturée avec le nom du vin ───────────────────────────
 const labelTextureCache = {};
-function makeLabelTexture(name, vintage, type){
-  const key = (name||'')+'|'+(vintage||'')+'|'+(type||'');
+function makeLabelTexture(name, vintage, type, appellation, region){
+  const key = (name||'')+'|'+(vintage||'')+'|'+(type||'')+'|'+(appellation||'')+'|'+(region||'');
   if(labelTextureCache[key]) return labelTextureCache[key];
 
+  // Résolution doublée (1024×560) pour un texte net même de près sur la bouteille
   const canvas = document.createElement('canvas');
-  canvas.width = 512; canvas.height = 280;
+  canvas.width = 1024; canvas.height = 560;
   const ctx = canvas.getContext('2d');
 
   // Fond crème avec léger dégradé
-  const grad = ctx.createLinearGradient(0,0,0,280);
+  const grad = ctx.createLinearGradient(0,0,0,560);
   grad.addColorStop(0, '#F5EEDD');
   grad.addColorStop(1, '#EDE2C8');
   ctx.fillStyle = grad;
-  ctx.fillRect(0,0,512,280);
+  ctx.fillRect(0,0,1024,560);
 
   // Bordure décorative
   ctx.strokeStyle = type==='blanc' ? '#A08850' : '#7A1A3A';
-  ctx.lineWidth = 6;
-  ctx.strokeRect(14,14,512-28,280-28);
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(24,24,512-48,280-48);
+  ctx.lineWidth = 12;
+  ctx.strokeRect(28,28,1024-56,560-56);
+  ctx.lineWidth = 3;
+  ctx.strokeRect(48,48,1024-96,560-96);
 
   // Nom du domaine (haut)
   ctx.fillStyle = '#2A1810';
   ctx.textAlign = 'center';
   const wineName = (name || 'Vin').toUpperCase();
-  let fontSize = wineName.length > 22 ? 30 : 38;
+  let fontSize = wineName.length > 22 ? 60 : 76;
   ctx.font = `bold ${fontSize}px Georgia, serif`;
 
   // Découpe le nom sur 2 lignes si trop long
@@ -892,39 +893,68 @@ function makeLabelTexture(name, vintage, type){
   let li = 0;
   words.forEach(w => {
     const test = lines[li] + (lines[li]?' ':'') + w;
-    if(ctx.measureText(test).width > 440 && lines[li]){
+    if(ctx.measureText(test).width > 880 && lines[li]){
       li++; lines[li] = w;
     } else {
       lines[li] = test;
     }
   });
-  const startY = lines.length > 1 ? 95 : 115;
-  lines.forEach((line,i) => ctx.fillText(line, 256, startY + i*44));
+  const startY = lines.length > 1 ? 160 : 200;
+  lines.forEach((line,i) => ctx.fillText(line, 512, startY + i*88));
+
+  // Appellation (sous le nom, si connue)
+  let cursorY = startY + lines.length*88 + 6;
+  if(appellation){
+    ctx.font = '32px Georgia, serif';
+    ctx.fillStyle = '#5A4530';
+    ctx.fillText(appellation.toUpperCase(), 512, cursorY);
+    cursorY += 44;
+  }
 
   // Ligne décorative
-  const lineY = startY + lines.length*44 + 15;
+  const lineY = cursorY + 20;
   ctx.strokeStyle = '#7A1A3A60';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.moveTo(120, lineY); ctx.lineTo(392, lineY);
+  ctx.moveTo(240, lineY); ctx.lineTo(784, lineY);
   ctx.stroke();
 
   // Millésime (centre)
+  let vY = lineY + 90;
   if(vintage){
-    ctx.font = 'italic 32px Georgia, serif';
+    ctx.font = 'italic 64px Georgia, serif';
     ctx.fillStyle = '#7A1A3A';
-    ctx.fillText(vintage, 256, lineY + 50);
+    ctx.fillText(vintage, 512, vY);
+  }
+
+  // Région (sous le millésime, si connue)
+  if(region){
+    ctx.font = '26px Georgia, serif';
+    ctx.fillStyle = '#5A4530';
+    ctx.fillText(region.toUpperCase(), 512, vY + 44);
   }
 
   // Type de vin (bas)
-  ctx.font = '16px Georgia, serif';
+  ctx.font = 'bold 32px Georgia, serif';
   ctx.fillStyle = '#5A4530';
   const typeLabels = {rouge:'VIN ROUGE', blanc:'VIN BLANC', rosé:'VIN ROSÉ', 'pétillant':'PÉTILLANT'};
-  ctx.fillText(typeLabels[type] || 'VIN', 256, 245);
+  ctx.fillText(typeLabels[type] || 'VIN', 512, 495);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.needsUpdate = true;
+  tex.anisotropy = (sRenderer && sRenderer.capabilities) ? sRenderer.capabilities.getMaxAnisotropy() : 4;
   labelTextureCache[key] = tex;
+  return tex;
+}
+
+// Texture à partir de la vraie photo scannée (identique à la réalité : écriture, couleurs, logo…)
+const realLabelTextureCache = {};
+function getRealLabelTexture(dataUrl){
+  if(!dataUrl) return null;
+  if(realLabelTextureCache[dataUrl]) return realLabelTextureCache[dataUrl];
+  const tex = new THREE.TextureLoader().load(dataUrl);
+  tex.anisotropy = (sRenderer && sRenderer.capabilities) ? sRenderer.capabilities.getMaxAnisotropy() : 4;
+  realLabelTextureCache[dataUrl] = tex;
   return tex;
 }
 
@@ -1024,7 +1054,8 @@ function buildShelf3D(data){
           filled++;
           const bMat=new THREE.MeshStandardMaterial({color:BCOLS3[b.type]||0x040101,roughness:0.12,metalness:0.25,transparent:true,opacity:0.95});
           const cMat=new THREE.MeshStandardMaterial({color:CCOLS3[b.type]||0x7A1020,roughness:0.3,metalness:0.6});
-          const lMat=new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
+          const labelTex = b.labelImage ? getRealLabelTexture(b.labelImage) : makeLabelTexture(b.name, b.vintage, b.type, b.appellation, b.region);
+          const lMat=new THREE.MeshStandardMaterial({map: labelTex, roughness:0.85});
           const g=new THREE.Group();
           const bs=BSCALE;
           if(row.isBack){
@@ -1308,7 +1339,8 @@ function renderBottlesInCave(){
 
       const bMat = new THREE.MeshStandardMaterial({color:BOTTLE_COLORS_CAVE[b.type]||0x040101, roughness:0.12, metalness:0.25, transparent:true, opacity:0.95});
       const cMat = new THREE.MeshStandardMaterial({color:CAPSULE_COLORS_CAVE[b.type]||0x7A1020, roughness:0.3, metalness:0.6});
-      const lMat = new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
+      const labelTex2 = b.labelImage ? getRealLabelTexture(b.labelImage) : makeLabelTexture(b.name, b.vintage, b.type, b.appellation, b.region);
+      const lMat = new THREE.MeshStandardMaterial({map: labelTex2, roughness:0.85});
 
       const g = new THREE.Group();
       if(isBack){
@@ -1367,6 +1399,8 @@ function addScannedBottle(wine, position, level){
   // Stocke la bouteille en attente, ouvre la porte, et attend le clic sur une clayette
   pendingBottle = {
     name: wine.name, vintage: wine.vintage, type: wine.type,
+    appellation: wine.appellation || '', region: wine.region || '',
+    labelImage: wine.labelImage || null, // photo réelle de l'étiquette, si disponible
     parker: wine.parker?.score || null, suckling: wine.suckling?.score || null, robinson: wine.robinson?.score || null,
     position: position || 'front',  // 'front' ou 'back'
     level: (level === 1) ? 1 : 0    // 0 = étage bas, 1 = étage haut
@@ -1507,8 +1541,20 @@ async function handleImageInput(e){
     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
     const b64 = canvas.toDataURL('image/jpeg', 0.75).split(',')[1];
 
+    // Miniature de la photo réelle, utilisée comme texture d'étiquette sur la bouteille 3D
+    // (taille réduite pour rester raisonnable dans le stockage local)
+    const tCanvas = document.createElement('canvas');
+    const TMAX = 380;
+    let tw = img.width, th = img.height;
+    if(tw > th){ if(tw > TMAX){ th = Math.round(th*TMAX/tw); tw = TMAX; } }
+    else       { if(th > TMAX){ tw = Math.round(tw*TMAX/th); th = TMAX; } }
+    tCanvas.width = tw; tCanvas.height = th;
+    tCanvas.getContext('2d').drawImage(img, 0, 0, tw, th);
+    const labelImage = tCanvas.toDataURL('image/jpeg', 0.62);
+
     try{
       const wine = await analyzeWineLabel(b64);
+      wine.labelImage = labelImage; // photo réelle rattachée au résultat, pour la texture 3D
       const col = '#'+(BCOLS_SCAN[wine.type]||0x040101).toString(16).padStart(6,'0');
 
       // Prix estimé + lien iDealwine
