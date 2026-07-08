@@ -299,13 +299,13 @@ canvas { display:block; }
   <div id="shelf-topbar">
     <div>
       <div id="shelf-title">Clayette nº<span id="shelf-num">1</span></div>
-      <div id="shelf-subtitle">14 emplacements</div>
+      <div id="shelf-subtitle">28 emplacements</div>
     </div>
     <button id="btn-close-shelf" onclick="closeShelfView()">✕</button>
   </div>
   <button id="btn-delete-bottle" onclick="deleteSelectedBottle()">🗑 Supprimer la bouteille</button>
   <div id="shelf-bottombar">
-    <div id="shelf-count"><span id="fill-count">0</span> / 14 emplacements occupés</div>
+    <div id="shelf-count"><span id="fill-count">0</span> / 28 emplacements occupés</div>
     <div id="shelf-hint">☞ Tap pour sélectionner · Glisser pour déplacer</div>
   </div>
 
@@ -446,15 +446,15 @@ const shelfGroups=[];
 const shelfData = Array.from({length:SHELF_COUNT}, (_,i)=>({
   index: i,
   label: `Clayette nº${i+1}`,
-  bottles: Array(14).fill(null) // 0-6 = devant, 7-13 = fond (une rainure entre chaque latte)
+  bottles: Array(28).fill(null) // niveau bas: 0-6 devant/7-13 fond · niveau haut: 14-20 devant/21-27 fond
 }));
 
 // ── Persistence: bouteilles dans les clayettes ──────────────────────────────
-// Convertit un tableau de bouteilles sauvegardé (ancien format 4 ou 8 emplacements)
-// vers le format actuel à 14 emplacements (7 devant + 7 fond, une rainure par latte).
+// Convertit un tableau de bouteilles sauvegardé (ancien format 4, 8 ou 14 emplacements)
+// vers le format actuel à 28 emplacements (2 étages × 7 devant + 7 fond).
 function migrateBottlesArray(bottles){
-  if(!Array.isArray(bottles)) return Array(14).fill(null);
-  if(bottles.length >= 14) return bottles.slice(0,14).concat(Array(Math.max(0,14-bottles.length)).fill(null));
+  if(!Array.isArray(bottles)) return Array(28).fill(null);
+  if(bottles.length >= 28) return bottles.slice(0,28).concat(Array(Math.max(0,28-bottles.length)).fill(null));
 
   // Étape 1 : normaliser vers l'ancien format 8 emplacements (4 devant + 4 fond)
   let eight;
@@ -472,12 +472,21 @@ function migrateBottlesArray(bottles){
   }
 
   // Étape 2 : chaque ancienne colonne (0-3) occupait 1 rainure sur 2 → nouvelle position = 2×colonne
-  const fourteen = Array(14).fill(null);
-  for(let c=0;c<4;c++){
-    if(eight[c])   fourteen[2*c]   = eight[c];   // devant
-    if(eight[c+4]) fourteen[7+2*c] = eight[c+4]; // fond
+  let fourteen;
+  if(bottles.length >= 14){
+    fourteen = bottles.slice(0,14).concat(Array(Math.max(0,14-bottles.length)).fill(null));
+  } else {
+    fourteen = Array(14).fill(null);
+    for(let c=0;c<4;c++){
+      if(eight[c])   fourteen[2*c]   = eight[c];   // devant
+      if(eight[c+4]) fourteen[7+2*c] = eight[c+4]; // fond
+    }
   }
-  return fourteen;
+
+  // Étape 3 : le format 14 devient le niveau bas (0-13) du nouveau format 28 ; niveau haut vide
+  const twentyEight = Array(28).fill(null);
+  for(let i=0;i<14;i++) twentyEight[i] = fourteen[i] || null;
+  return twentyEight;
 }
 
 function loadShelfData(){
@@ -648,7 +657,7 @@ let sDragStartSlot=null;
 let sLastTapSlot=null, sLastTapTime=0;
 let sBottleFlipped={};    // {slotIndex: bool} — true = retournée
 
-const BCOLS3={rouge:0x1A0608, blanc:0x182A18, rosé:0x1E0C14, pétillant:0x0A1020};
+const BCOLS3={rouge:0x040101, blanc:0x182A18, rosé:0x1E0C14, pétillant:0x0A1020};
 const CCOLS3={rouge:0x7A1020, blanc:0xB09018, rosé:0xB06070, pétillant:0x203080};
 
 // Raycaster pour la scène clayette
@@ -979,67 +988,75 @@ function buildShelf3D(data){
   const bzFront = frZ - halfBottle; // cul ET bouchon touchent le rebord avant selon orientation
   const bzBack  = bkZ + halfBottle; // même logique, côté rebord arrière
 
-  // Chaque colonne a 2 emplacements indépendants : devant (idx 0-6) et fond (idx 7-13)
+  // Chaque colonne a 2 emplacements indépendants par étage : devant et fond
   const ROWS = [
     {rowOffset:0, isBack:false, bz:bzFront},
     {rowOffset:7, isBack:true,  bz:bzBack}
   ];
+  // 2 étages empilés : le niveau haut repose directement sur le niveau bas (même grille de rainures)
+  const bottleDiam = 0.12*BSCALE;
+  const LEVELS = [
+    {levelOffset:0,  yBase: by},
+    {levelOffset:14, yBase: by + bottleDiam}
+  ];
 
-  for(let col=0; col<SLOTS; col++){
-    const bx = grooveXs[col];
+  LEVELS.forEach(level => {
+    for(let col=0; col<SLOTS; col++){
+      const bx = grooveXs[col];
 
-    ROWS.forEach(row => {
-      const idx = col + row.rowOffset;
-      const b = data.bottles[idx] || null;
+      ROWS.forEach(row => {
+        const idx = col + row.rowOffset + level.levelOffset;
+        const b = data.bottles[idx] || null;
 
-      // Zone tactile invisible — couvre uniquement la moitié avant ou fond du slot,
-      // pour distinguer les deux emplacements lors du placement d'une bouteille en attente
-      const hitGeo=new THREE.PlaneGeometry(slatGap3D*0.95, SD*0.45);
-      const hitMat=new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0, depthWrite:false});
-      const hitMesh=new THREE.Mesh(hitGeo, hitMat);
-      hitMesh.rotation.x=-Math.PI/2;
-      hitMesh.position.set(bx, slatH2/2+0.08, row.isBack ? -SD*0.23 : SD*0.23);
-      sGroup.add(hitMesh);
-      sSlotHitboxes.push({mesh:hitMesh, slotIndex:idx});
+        // Zone tactile invisible — couvre uniquement la moitié avant ou fond du slot,
+        // pour distinguer les deux emplacements lors du placement d'une bouteille en attente
+        const hitGeo=new THREE.PlaneGeometry(slatGap3D*0.95, SD*0.45);
+        const hitMat=new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0, depthWrite:false});
+        const hitMesh=new THREE.Mesh(hitGeo, hitMat);
+        hitMesh.rotation.x=-Math.PI/2;
+        hitMesh.position.set(bx, level.yBase+0.08, row.isBack ? -SD*0.23 : SD*0.23);
+        sGroup.add(hitMesh);
+        sSlotHitboxes.push({mesh:hitMesh, slotIndex:idx});
 
-      if(b){
-        filled++;
-        const bMat=new THREE.MeshStandardMaterial({color:BCOLS3[b.type]||0x1A0608,roughness:0.12,metalness:0.25,transparent:true,opacity:0.9});
-        const cMat=new THREE.MeshStandardMaterial({color:CCOLS3[b.type]||0x7A1020,roughness:0.3,metalness:0.6});
-        const lMat=new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
-        const g=new THREE.Group();
-        const bs=BSCALE;
-        if(row.isBack){
-          g.rotation.x = Math.PI/2;
-          g.position.set(bx, by + 0.06*bs, bkZ + 0.17*bs);
+        if(b){
+          filled++;
+          const bMat=new THREE.MeshStandardMaterial({color:BCOLS3[b.type]||0x040101,roughness:0.12,metalness:0.25,transparent:true,opacity:0.95});
+          const cMat=new THREE.MeshStandardMaterial({color:CCOLS3[b.type]||0x7A1020,roughness:0.3,metalness:0.6});
+          const lMat=new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
+          const g=new THREE.Group();
+          const bs=BSCALE;
+          if(row.isBack){
+            g.rotation.x = Math.PI/2;
+            g.position.set(bx, level.yBase + 0.06*bs, bkZ + 0.17*bs);
+          } else {
+            g.rotation.x = -Math.PI/2;
+            g.position.set(bx, level.yBase + 0.06*bs, frZ - 0.17*bs);
+          }
+          const body=new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,16),bMat); body.castShadow=true; g.add(body);
+          const sho=new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,16),bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
+          const nk=new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,14),bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
+          const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,14),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
+          const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.17*bs,16,1,true,-Math.PI*0.7,Math.PI*1.4);
+          const lbl=new THREE.Mesh(lblGeo,lMat); lbl.rotation.y = row.isBack ? Math.PI : 0; lbl.position.y=-0.04*bs; g.add(lbl);
+          sGroup.add(g);
+          sBottleMeshes.push({group:g, slotIndex:idx});
         } else {
-          g.rotation.x = -Math.PI/2;
-          g.position.set(bx, by + 0.06*bs, frZ - 0.17*bs);
+          // Emplacement vide — anneau discret au sol (ou sur le dessus des bouteilles du niveau bas)
+          const bs2=BSCALE*0.9;
+          const ringMat=new THREE.MeshStandardMaterial({
+            color:0x4A3540, roughness:1.0, metalness:0.0,
+            transparent:true, opacity:0.18, side:THREE.DoubleSide
+          });
+          const ringGeo=new THREE.RingGeometry(0.05*bs2, 0.062*bs2, 24);
+          const ring=new THREE.Mesh(ringGeo, ringMat);
+          ring.rotation.x=-Math.PI/2;
+          ring.position.set(bx, level.yBase+0.002, row.bz);
+          ring.castShadow=false; ring.receiveShadow=false;
+          sGroup.add(ring);
         }
-        const body=new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,16),bMat); body.castShadow=true; g.add(body);
-        const sho=new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,16),bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
-        const nk=new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,14),bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
-        const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,14),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
-        const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.17*bs,16,1,true,-Math.PI*0.7,Math.PI*1.4);
-        const lbl=new THREE.Mesh(lblGeo,lMat); lbl.rotation.y = row.isBack ? Math.PI : 0; lbl.position.y=-0.04*bs; g.add(lbl);
-        sGroup.add(g);
-        sBottleMeshes.push({group:g, slotIndex:idx});
-      } else {
-        // Emplacement vide — anneau discret au sol
-        const bs2=BSCALE*0.9;
-        const ringMat=new THREE.MeshStandardMaterial({
-          color:0x4A3540, roughness:1.0, metalness:0.0,
-          transparent:true, opacity:0.18, side:THREE.DoubleSide
-        });
-        const ringGeo=new THREE.RingGeometry(0.05*bs2, 0.062*bs2, 24);
-        const ring=new THREE.Mesh(ringGeo, ringMat);
-        ring.rotation.x=-Math.PI/2;
-        ring.position.set(bx, slatH2/2+0.002, row.bz);
-        ring.castShadow=false; ring.receiveShadow=false;
-        sGroup.add(ring);
-      }
-    });
-  }
+      });
+    }
+  });
   document.getElementById('fill-count').textContent=filled;
 }
 
@@ -1065,10 +1082,12 @@ function openShelfView(shelfObj){
   data.bottles.forEach((b,i) => { if(b) b.flipped = false; sBottleFlipped[i]=false; });
   document.getElementById('shelf-num').textContent=shelfObj.index+1;
   if(pendingBottle){
-    document.getElementById('shelf-subtitle').textContent = 'Touche un emplacement libre — devant ou au fond';
+    const posLabel = pendingBottle.position === 'back' ? 'au fond' : 'devant';
+    const levelLabel = pendingBottle.level === 1 ? "étage du haut" : "étage du bas";
+    document.getElementById('shelf-subtitle').textContent = 'Touche un emplacement libre — '+posLabel+' · '+levelLabel;
     document.getElementById('shelf-hint').textContent = '☞ Touche un emplacement libre';
   } else {
-    document.getElementById('shelf-subtitle').textContent=data.label+' · 14 emplacements';
+    document.getElementById('shelf-subtitle').textContent=data.label+' · 28 emplacements';
     document.getElementById('shelf-hint').textContent = '☞ Tap pour sélectionner · Glisser pour déplacer';
   }
   if(!sRenderer) initShelfRenderer();
@@ -1250,7 +1269,7 @@ function updateBottleCount(){
 }
 
 // ── Bouteilles visibles dans la cave principale ───────────────────────────────
-const BOTTLE_COLORS_CAVE = {rouge:0x1A0608, blanc:0x182A18, rosé:0x1E0C14, pétillant:0x0A1020};
+const BOTTLE_COLORS_CAVE = {rouge:0x040101, blanc:0x182A18, rosé:0x1E0C14, pétillant:0x0A1020};
 const CAPSULE_COLORS_CAVE = {rouge:0x7A1020, blanc:0xB09018, rosé:0xB06070, pétillant:0x203080};
 let caveBottleGroup = new THREE.Group();
 caveGroup.add(caveBottleGroup);
@@ -1277,13 +1296,15 @@ function renderBottlesInCave(){
     shelf.bottles.forEach((b, idx) => {
       if(!b) return;
       const col = idx % 7;
-      const isBack = idx >= 7;
+      const segment = Math.floor(idx/7); // 0=devant bas,1=fond bas,2=devant haut,3=fond haut
+      const isBack = (segment % 2 === 1);
+      const level = Math.floor(segment/2); // 0 = niveau bas, 1 = niveau haut
 
       const bx = bottleGrooves[col] !== undefined ? bottleGrooves[col] : 0;
       const bz = isBack ? backZ + 0.17*bs : frontZ2 - 0.17*bs;
-      const by = shelfY + slatH/2 + 0.06*bs;
+      const by = shelfY + slatH/2 + 0.06*bs + level*(0.12*bs);
 
-      const bMat = new THREE.MeshStandardMaterial({color:BOTTLE_COLORS_CAVE[b.type]||0x1A0608, roughness:0.12, metalness:0.25, transparent:true, opacity:0.9});
+      const bMat = new THREE.MeshStandardMaterial({color:BOTTLE_COLORS_CAVE[b.type]||0x040101, roughness:0.12, metalness:0.25, transparent:true, opacity:0.95});
       const cMat = new THREE.MeshStandardMaterial({color:CAPSULE_COLORS_CAVE[b.type]||0x7A1020, roughness:0.3, metalness:0.6});
       const lMat = new THREE.MeshStandardMaterial({map: makeLabelTexture(b.name, b.vintage, b.type), roughness:0.85});
 
@@ -1312,7 +1333,7 @@ function renderBottlesInCave(){
 updateBottleCount();
 
 // ─── Camera scan → analyze label → add to cave ─────────────────────────────────
-const BCOLS_SCAN={rouge:0x1A0608,blanc:0x182A18,rosé:0x1E0C14,'pétillant':0x0A1020};
+const BCOLS_SCAN={rouge:0x040101,blanc:0x182A18,rosé:0x1E0C14,'pétillant':0x0A1020};
 
 function typeGlyphJS(t){ return t==='rouge'?'🍷':t==='blanc'?'🥂':t==='rosé'?'🌸':'✨'; }
 function typeLabelJS(t){ return t==='rouge'?'Rouge':t==='blanc'?'Blanc':t==='rosé'?'Rosé':'Pétillant'; }
@@ -1340,17 +1361,19 @@ function findFirstEmptySlotIn(si){
 // ── Mode "placement en attente" ──────────────────────────────────────────────
 let pendingBottle = null; // bouteille scannée en attente de placement
 
-function addScannedBottle(wine, position){
+function addScannedBottle(wine, position, level){
   // Stocke la bouteille en attente, ouvre la porte, et attend le clic sur une clayette
   pendingBottle = {
     name: wine.name, vintage: wine.vintage, type: wine.type,
     parker: wine.parker?.score || null, suckling: wine.suckling?.score || null, robinson: wine.robinson?.score || null,
-    position: position || 'front'  // 'front' ou 'back'
+    position: position || 'front',  // 'front' ou 'back'
+    level: (level === 1) ? 1 : 0    // 0 = étage bas, 1 = étage haut
   };
   closeScanOverlay();
   if(!doorOpen) toggleDoor();
   const posLabel = pendingBottle.position === 'back' ? 'au fond' : 'devant';
-  document.getElementById('hint').textContent = '☞ Touche une clayette pour y ranger ' + posLabel + ' · Annuler pour changer';
+  const levelLabel = pendingBottle.level === 1 ? "à l'étage du haut" : "à l'étage du bas";
+  document.getElementById('hint').textContent = '☞ Touche une clayette pour y ranger ' + posLabel + ' ' + levelLabel + ' · Annuler pour changer';
   document.getElementById('placement-wine-name').textContent = (wine.name||'') + (wine.vintage ? ' · '+wine.vintage : '');
   document.getElementById('placement-banner').classList.add('visible');
   return true;
@@ -1382,7 +1405,7 @@ function placeBottleOnShelf(shelfIndex){
 // Deux bouteilles sont trop larges pour tenir dans deux rainures immédiatement voisines :
 // il faut toujours au moins un emplacement vide entre deux bouteilles d'une même rangée.
 function hasAdjacentBottle(shelf, slotIndex, excludeSlot){
-  const rowStart = slotIndex < 7 ? 0 : 7;
+  const rowStart = Math.floor(slotIndex/7)*7; // chaque rangée (devant/fond, par étage) fait 7 emplacements
   const rowEnd = rowStart + 6; // dernier index inclus de la rangée
   const prev = slotIndex - 1, next = slotIndex + 1;
   if(prev >= rowStart && prev !== excludeSlot && shelf.bottles[prev]) return true;
@@ -1395,11 +1418,22 @@ function hasAdjacentBottle(shelf, slotIndex, excludeSlot){
 function placeBottleAtSlot(slotIndex){
   if(!pendingBottle || !currentShelfData) return false;
   if(currentShelfData.bottles[slotIndex]) return false; // emplacement déjà occupé
+
+  const segment = Math.floor(slotIndex/7); // 0=devant bas, 1=fond bas, 2=devant haut, 3=fond haut
+  const tappedIsBack  = (segment % 2 === 1);
+  const tappedLevel   = Math.floor(segment/2);
+  const wantIsBack    = pendingBottle.position === 'back';
+  const wantLevel     = pendingBottle.level === 1 ? 1 : 0;
+  if(tappedIsBack !== wantIsBack || tappedLevel !== wantLevel){
+    const posLabel = wantIsBack ? 'au fond' : 'devant';
+    const levelLabel = wantLevel === 1 ? "à l'étage du haut" : "à l'étage du bas";
+    alert('Cette bouteille doit être rangée ' + posLabel + ' ' + levelLabel + '. Touche un emplacement de cette rangée.');
+    return false;
+  }
   if(hasAdjacentBottle(currentShelfData, slotIndex)){
     alert('Les bouteilles sont trop larges pour être collées : laisse au moins un emplacement vide entre deux bouteilles.');
     return false;
   }
-  pendingBottle.position = (slotIndex >= 7) ? 'back' : 'front';
   currentShelfData.bottles[slotIndex] = pendingBottle;
   pendingBottle = null;
   document.getElementById('placement-banner').classList.remove('visible');
@@ -1473,7 +1507,7 @@ async function handleImageInput(e){
 
     try{
       const wine = await analyzeWineLabel(b64);
-      const col = '#'+(BCOLS_SCAN[wine.type]||0x1A0608).toString(16).padStart(6,'0');
+      const col = '#'+(BCOLS_SCAN[wine.type]||0x040101).toString(16).padStart(6,'0');
 
       // Prix estimé + lien iDealwine
       const priceHtml = wine.price ? (
@@ -1539,20 +1573,35 @@ async function handleImageInput(e){
         + '<div style="background:#221320;border-radius:12px;padding:14px 16px;margin-bottom:18px;">'+scoresHtml+'</div>'
         + '<div style="display:flex;gap:10px;">'
         + '<div style="display:flex;flex-direction:column;gap:8px;flex:1;">'
-        + '<button id="confirm-add-front" style="padding:13px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:13px;font-weight:700;">🍷 Ranger devant</button>'
-        + '<button id="confirm-add-back" style="padding:13px;border:none;border-radius:12px;cursor:pointer;background:#2E1A24;color:#E8D5A0;font-family:inherit;font-size:13px;font-weight:700;border:1px solid #7A1A3A40;">📦 Ranger au fond</button>'
+        + '<div style="font-size:10px;color:#7A6570;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;">Position</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+        + '<button id="confirm-add-front-bas" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;">🍷 Devant<br>Bas</button>'
+        + '<button id="confirm-add-front-haut" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7A1A3A,#4A0E22);color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;">🍷 Devant<br>Haut</button>'
+        + '<button id="confirm-add-back-bas" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:#2E1A24;color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;border:1px solid #7A1A3A40;">📦 Fond<br>Bas</button>'
+        + '<button id="confirm-add-back-haut" style="padding:11px 6px;border:none;border-radius:12px;cursor:pointer;background:#2E1A24;color:#E8D5A0;font-family:inherit;font-size:12px;font-weight:700;border:1px solid #7A1A3A40;">📦 Fond<br>Haut</button>'
+        + '</div>'
         + '</div>'
         + '<button onclick="closeScanOverlay()" style="padding:15px 18px;border:none;border-radius:12px;cursor:pointer;background:#221320;color:#7A6570;">&#x2715;</button>'
         + '</div>'
       );
 
-      document.getElementById('confirm-add-front').onclick = function(){
-        const added = addScannedBottle(wine, 'front');
+      document.getElementById('confirm-add-front-bas').onclick = function(){
+        const added = addScannedBottle(wine, 'front', 0);
         closeScanOverlay();
         if(!added) alert('Toutes les clayettes sont pleines !');
       };
-      document.getElementById('confirm-add-back').onclick = function(){
-        const added = addScannedBottle(wine, 'back');
+      document.getElementById('confirm-add-front-haut').onclick = function(){
+        const added = addScannedBottle(wine, 'front', 1);
+        closeScanOverlay();
+        if(!added) alert('Toutes les clayettes sont pleines !');
+      };
+      document.getElementById('confirm-add-back-bas').onclick = function(){
+        const added = addScannedBottle(wine, 'back', 0);
+        closeScanOverlay();
+        if(!added) alert('Toutes les clayettes sont pleines !');
+      };
+      document.getElementById('confirm-add-back-haut').onclick = function(){
+        const added = addScannedBottle(wine, 'back', 1);
         closeScanOverlay();
         if(!added) alert('Toutes les clayettes sont pleines !');
       };
