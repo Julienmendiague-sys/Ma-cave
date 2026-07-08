@@ -825,7 +825,7 @@ function initShelfRenderer(){
         const targetSlot = sDragStartSlot + dir;
         const rowStart = Math.floor(sDragStartSlot/7)*7;
         const rowEnd = rowStart+7;
-        if(targetSlot >= rowStart && targetSlot < rowEnd){
+        if(targetSlot >= rowStart && targetSlot < rowEnd && !hasAdjacentBottle(currentShelfData, targetSlot, sDragStartSlot)){
           sMoveBottle(sDragStartSlot, targetSlot);
           sSelectedSlot = targetSlot;
         }
@@ -966,8 +966,8 @@ function buildShelf3D(data){
   const slatGap3D = SW / 7;
   // 7 groove centers : entre chaque paire de lattes adjacentes (0-1, 1-2, 2-3, ... 6-7)
   const grooveXs = [0.5,1.5,2.5,3.5,4.5,5.5,6.5].map(i => -SW/2 + i * slatGap3D);
-  // Bouteilles jointives dans des rainures contiguës — diamètre légèrement < l'espacement pour ne pas se chevaucher
-  const BSCALE = (slatGap3D * 0.92) / 0.12;
+  // Bouteilles plus épaisses (proportions réelles) — mais toujours cohérentes avec l'échelle de la clayette
+  const BSCALE = (slatGap3D * 1.25) / 0.12;
   let filled=0;
   const by = slatH2/2;
   // Cul vers l'avant (frZ) — centre à frZ - demi-longueur bouteille
@@ -1262,7 +1262,7 @@ function renderBottlesInCave(){
   // 7 rainures × 2 rangées (avant + fond) = 14 emplacements
   const slatGap = shelfW / 7;
   const bottleGrooves = [0.5,1.5,2.5,3.5,4.5,5.5,6.5].map(i => -shelfW/2 + i * slatGap);
-  const BSCALE = (slatGap * 0.90) / 0.12;
+  const BSCALE = (slatGap * 1.25) / 0.12;
   const bs = BSCALE;
   const caveRowZ = [
     frontZ2 - 0.17*bs,   // rangée avant
@@ -1379,11 +1379,26 @@ function placeBottleOnShelf(shelfIndex){
   return true;
 }
 
+// Deux bouteilles sont trop larges pour tenir dans deux rainures immédiatement voisines :
+// il faut toujours au moins un emplacement vide entre deux bouteilles d'une même rangée.
+function hasAdjacentBottle(shelf, slotIndex, excludeSlot){
+  const rowStart = slotIndex < 7 ? 0 : 7;
+  const rowEnd = rowStart + 6; // dernier index inclus de la rangée
+  const prev = slotIndex - 1, next = slotIndex + 1;
+  if(prev >= rowStart && prev !== excludeSlot && shelf.bottles[prev]) return true;
+  if(next <= rowEnd && next !== excludeSlot && shelf.bottles[next]) return true;
+  return false;
+}
+
 // Place la bouteille en attente dans un emplacement précis choisi par l'utilisateur
 // (utilisé depuis la vue clayette zoomée, cf. onSDown dans initShelfRenderer)
 function placeBottleAtSlot(slotIndex){
   if(!pendingBottle || !currentShelfData) return false;
   if(currentShelfData.bottles[slotIndex]) return false; // emplacement déjà occupé
+  if(hasAdjacentBottle(currentShelfData, slotIndex)){
+    alert('Les bouteilles sont trop larges pour être collées : laisse au moins un emplacement vide entre deux bouteilles.');
+    return false;
+  }
   pendingBottle.position = (slotIndex >= 7) ? 'back' : 'front';
   currentShelfData.bottles[slotIndex] = pendingBottle;
   pendingBottle = null;
