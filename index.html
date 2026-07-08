@@ -78,34 +78,38 @@ canvas { display:block; }
 }
 #crop-overlay {
   position: fixed; inset: 0; z-index: 300;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   background: #050308F0;
   opacity: 0; pointer-events: none;
   transition: opacity 0.3s;
-  overflow-y: auto; padding: 24px 0;
+  overflow-y: auto; padding: 28px 0 32px;
 }
 #crop-overlay.visible { opacity: 1; pointer-events: all; }
-#crop-title { color: #E8D5A0; font-size: 14px; letter-spacing: 1px; margin-bottom: 6px; }
-#crop-sub { color: #7A6570; font-size: 11px; margin-bottom: 18px; text-align: center; padding: 0 24px; }
+#crop-title { color: #E8D5A0; font-size: 14px; letter-spacing: 1px; margin-bottom: 6px; flex-shrink: 0; }
+#crop-sub { color: #7A6570; font-size: 11px; margin-bottom: 18px; text-align: center; padding: 0 24px; flex-shrink: 0; }
 #crop-frame {
   position: relative; overflow: hidden;
-  height: min(56vh, 460px);
+  height: min(50vh, 420px);
   aspect-ratio: 3 / 4;
   border: 2px solid #B8952A; border-radius: 8px;
-  box-shadow: 0 0 0 2000px #050308F0;
+  background: #000;
   touch-action: none;
+  flex-shrink: 0;
 }
 #crop-img {
   position: absolute; top: 0; left: 0;
   transform-origin: top left;
   user-select: none; -webkit-user-drag: none;
+  pointer-events: none;
 }
 #crop-controls {
-  display: flex; gap: 14px; margin-top: 22px;
+  display: flex; gap: 14px; margin-top: 24px;
+  position: relative; z-index: 5; flex-shrink: 0;
 }
 #crop-controls button {
-  padding: 13px 26px; border: none; border-radius: 12px; cursor: pointer;
-  font-family: 'Georgia', serif; font-size: 13px; font-weight: 700;
+  padding: 15px 28px; border: none; border-radius: 12px; cursor: pointer;
+  font-family: 'Georgia', serif; font-size: 14px; font-weight: 700;
+  position: relative; z-index: 5; pointer-events: auto;
 }
 #crop-confirm { background: linear-gradient(135deg,#7A1A3A,#4A0E22); color: #E8D5A0; }
 #crop-cancel { background: #221320; color: #7A6570; }
@@ -327,8 +331,8 @@ canvas { display:block; }
     <img id="crop-img" src="" alt="">
   </div>
   <div id="crop-controls">
-    <button id="crop-cancel" onclick="cancelCrop()">Annuler</button>
-    <button id="crop-confirm" onclick="confirmCrop()">✓ Valider</button>
+    <button type="button" id="crop-cancel" onclick="cancelCrop()">Annuler</button>
+    <button type="button" id="crop-confirm" onclick="confirmCrop()">✓ Valider</button>
   </div>
 </div>
 
@@ -1542,21 +1546,38 @@ let cropBaseScale = 1, cropScale = 1, cropTx = 0, cropTy = 0;
 const cropPointers = new Map();
 let cropLastPinchDist = null;
 
-function openCropTool(file){
+async function openCropTool(file){
   cropSourceFile = file;
   const imgEl = document.getElementById('crop-img');
   const url = URL.createObjectURL(file);
-  imgEl.onload = () => {
-    cropNatW = imgEl.naturalWidth; cropNatH = imgEl.naturalHeight;
-    const frame = document.getElementById('crop-frame');
-    const fw = frame.clientWidth, fh = frame.clientHeight;
-    cropBaseScale = Math.max(fw/cropNatW, fh/cropNatH);
-    cropScale = 1; cropTx = 0; cropTy = 0;
-    centerCropImage();
-    applyCropTransform();
-  };
-  imgEl.src = url;
+
+  // Réinitialise l'affichage pendant le chargement pour éviter de montrer l'ancienne photo
+  imgEl.style.width = '0px';
+  imgEl.style.height = '0px';
   document.getElementById('crop-overlay').classList.add('visible');
+  imgEl.src = url;
+
+  try{
+    await new Promise((resolve, reject) => {
+      if(imgEl.complete && imgEl.naturalWidth > 0){ resolve(); return; }
+      imgEl.onload = () => resolve();
+      imgEl.onerror = () => reject(new Error('Erreur de chargement'));
+    });
+  }catch(err){
+    console.error('Impossible de charger la photo pour le cadrage :', err);
+    alert("La photo n'a pas pu être chargée pour le cadrage. Réessaie.");
+    document.getElementById('crop-overlay').classList.remove('visible');
+    return;
+  }
+
+  cropNatW = imgEl.naturalWidth || 1;
+  cropNatH = imgEl.naturalHeight || 1;
+  const frame = document.getElementById('crop-frame');
+  const fw = frame.clientWidth || 1, fh = frame.clientHeight || 1;
+  cropBaseScale = Math.max(fw/cropNatW, fh/cropNatH);
+  cropScale = 1;
+  centerCropImage();
+  applyCropTransform();
 }
 
 function centerCropImage(){
@@ -1641,23 +1662,30 @@ function cancelCrop(){
 }
 
 function confirmCrop(){
-  const frame = document.getElementById('crop-frame');
-  const fw = frame.clientWidth, fh = frame.clientHeight;
-  const displayScale = cropBaseScale*cropScale;
-  // Rectangle sélectionné, exprimé dans les pixels de la photo d'origine
-  const sx = Math.max(0, -cropTx/displayScale);
-  const sy = Math.max(0, -cropTy/displayScale);
-  const sw = Math.min(cropNatW-sx, fw/displayScale);
-  const sh = Math.min(cropNatH-sy, fh/displayScale);
+  const file = cropSourceFile;
+  let croppedLabelImage = null;
+  try{
+    const frame = document.getElementById('crop-frame');
+    const imgEl = document.getElementById('crop-img');
+    const fw = frame.clientWidth, fh = frame.clientHeight;
+    const displayScale = (cropBaseScale||1) * (cropScale||1);
+    if(fw > 0 && fh > 0 && cropNatW > 0 && cropNatH > 0 && displayScale > 0){
+      // Rectangle sélectionné, exprimé dans les pixels de la photo d'origine
+      const sx = Math.max(0, Math.min(cropNatW-1, -cropTx/displayScale));
+      const sy = Math.max(0, Math.min(cropNatH-1, -cropTy/displayScale));
+      const sw = Math.max(1, Math.min(cropNatW-sx, fw/displayScale));
+      const sh = Math.max(1, Math.min(cropNatH-sy, fh/displayScale));
 
-  const outCanvas = document.createElement('canvas');
-  outCanvas.width = 520; outCanvas.height = Math.round(520/0.75); // format vertical 3:4
-  const imgEl = document.getElementById('crop-img');
-  outCanvas.getContext('2d').drawImage(imgEl, sx, sy, sw, sh, 0, 0, outCanvas.width, outCanvas.height);
-  const croppedLabelImage = outCanvas.toDataURL('image/jpeg', 0.78);
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = 520; outCanvas.height = Math.round(520/0.75); // format vertical 3:4
+      outCanvas.getContext('2d').drawImage(imgEl, sx, sy, sw, sh, 0, 0, outCanvas.width, outCanvas.height);
+      croppedLabelImage = outCanvas.toDataURL('image/jpeg', 0.78);
+    }
+  }catch(err){
+    console.error('Cadrage impossible, on continue avec la photo complète :', err);
+  }
 
   document.getElementById('crop-overlay').classList.remove('visible');
-  const file = cropSourceFile;
   cropSourceFile = null;
   processScannedFile(file, croppedLabelImage);
 }
@@ -1721,7 +1749,18 @@ async function processScannedFile(file, croppedLabelImage){
     const b64 = canvas.toDataURL('image/jpeg', 0.75).split(',')[1];
 
     // Étiquette cadrée manuellement par l'utilisateur = texture 3D exacte de la bouteille
-    const labelImage = croppedLabelImage;
+    // (filet de sécurité : si le cadrage a échoué, on utilise une miniature de la photo complète)
+    let labelImage = croppedLabelImage;
+    if(!labelImage){
+      const tCanvas = document.createElement('canvas');
+      const TMAX = 380;
+      let tw = img.width, th = img.height;
+      if(tw > th){ if(tw > TMAX){ th = Math.round(th*TMAX/tw); tw = TMAX; } }
+      else       { if(th > TMAX){ tw = Math.round(tw*TMAX/th); th = TMAX; } }
+      tCanvas.width = tw; tCanvas.height = th;
+      tCanvas.getContext('2d').drawImage(img, 0, 0, tw, th);
+      labelImage = tCanvas.toDataURL('image/jpeg', 0.62);
+    }
 
     try{
       const wine = await analyzeWineLabel(b64);
