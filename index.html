@@ -591,19 +591,20 @@ function saveShelfData(){
 
 const hadSavedBottles = loadShelfData();
 
-// Wine stock — sert d'exemple uniquement si aucune donnée sauvegardée
-const WINES_STOCK = hadSavedBottles ? [] : [
-  { name:'Château Margaux', vintage:'2018', type:'rouge', parker:98, suckling:97, robinson:95, quantity:3 }
-];
-// Pre-fill shelves from stock (uniquement au tout premier lancement)
-let _slot=0;
-WINES_STOCK.forEach(w=>{
-  for(let q=0;q<w.quantity;q++){
-    const si=Math.floor(_slot/7), bi=_slot%7;
-    if(si<shelfData.length) shelfData[si].bottles[bi]={name:w.name,vintage:w.vintage,type:w.type,parker:w.parker,suckling:w.suckling,robinson:w.robinson};
-    _slot++;
-  }
-});
+// Nettoyage ponctuel : retire les bouteilles de démonstration (Château Margaux 2018)
+// qui avaient été enregistrées automatiquement avant qu'on retire ce pré-remplissage.
+(function removeDemoBottles(){
+  let changed = false;
+  shelfData.forEach(shelf => {
+    shelf.bottles.forEach((b, idx) => {
+      if(b && b.name === 'Château Margaux' && b.vintage === '2018' && !b.labelImage){
+        shelf.bottles[idx] = null;
+        changed = true;
+      }
+    });
+  });
+  if(changed) saveShelfData();
+})();
 
 function buildShelf(sy, idx){
   const g=new THREE.Group();
@@ -1229,6 +1230,7 @@ function renderPlacementStagePanel(){
 }
 
 function choosePlacementLevel(level){
+  exclusiveOverlay('shelf-overlay'); // sécurité : force la fermeture de tout autre écran resté ouvert
   placementLevelChoice = level;
   placementStage = 'tap';
   renderPlacementStagePanel();
@@ -1283,6 +1285,7 @@ function closeShelfView(){
   resetPlacementStage();
   if(sAnimId){cancelAnimationFrame(sAnimId);sAnimId=null;}
   document.getElementById('shelf-overlay').classList.remove('visible');
+  document.getElementById('shelf-overlay').style.display = 'none';
   renderer.domElement.style.filter='';
   document.getElementById('ui').style.filter='';
   document.getElementById('controls').style.filter='';
@@ -1644,7 +1647,9 @@ function showScanPanel(html){
   exclusiveOverlay('scan-overlay');
 }
 function closeScanOverlay(){
-  document.getElementById('scan-overlay').classList.remove('visible');
+  const el = document.getElementById('scan-overlay');
+  el.classList.remove('visible');
+  el.style.display = 'none';
   uiActionLockUntil = Date.now() + 600; // évite qu'un tap juste après la fermeture ne relance une action
 }
 
@@ -1653,12 +1658,18 @@ function closeScanOverlay(){
 // pour que la texture 3D affiche l'étiquette seule et non toute la scène.
 // Garantit qu'un seul overlay plein écran (scan / cadrage / clayette) n'est jamais actif à la fois.
 // Empêche un overlay resté ouvert par erreur d'intercepter des clics destinés à un autre.
+// Utilise display:none (et pas seulement l'opacité) pour une garantie absolue de non-interactivité.
 function exclusiveOverlay(idToShow){
   ['scan-overlay','crop-overlay','shelf-overlay'].forEach(id => {
     const el = document.getElementById(id);
     if(!el) return;
-    if(id === idToShow) el.classList.add('visible');
-    else el.classList.remove('visible');
+    if(id === idToShow){
+      el.style.display = '';
+      el.classList.add('visible');
+    } else {
+      el.classList.remove('visible');
+      el.style.display = 'none';
+    }
   });
 }
 
@@ -1689,6 +1700,7 @@ async function openCropTool(file){
     console.error('Impossible de charger la photo pour le cadrage :', err);
     alert("La photo n'a pas pu être chargée pour le cadrage. Réessaie.");
     document.getElementById('crop-overlay').classList.remove('visible');
+    document.getElementById('crop-overlay').style.display = 'none';
     return;
   }
 
@@ -1779,7 +1791,9 @@ function cropPointerDist(){
 })();
 
 function cancelCrop(){
-  document.getElementById('crop-overlay').classList.remove('visible');
+  const el = document.getElementById('crop-overlay');
+  el.classList.remove('visible');
+  el.style.display = 'none';
   cropSourceFile = null;
 }
 
@@ -1808,6 +1822,7 @@ function confirmCrop(){
   }
 
   document.getElementById('crop-overlay').classList.remove('visible');
+  document.getElementById('crop-overlay').style.display = 'none';
   cropSourceFile = null;
   processScannedFile(file, croppedLabelImage);
 }
