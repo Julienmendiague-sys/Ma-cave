@@ -391,6 +391,13 @@ canvas { display:block; }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
+// Garantie de départ : ces 3 écrans plein écran sont explicitement masqués tant qu'ils
+// n'ont pas été ouverts volontairement — évite qu'ils interceptent des clics par erreur.
+['scan-overlay','crop-overlay','shelf-overlay'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.style.display = 'none';
+});
+
 // ─── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x1A0810, 0.032);
