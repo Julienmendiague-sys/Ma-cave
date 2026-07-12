@@ -16,23 +16,23 @@ canvas { display:block; }
 #ui {
   position:fixed; top:0; left:0; right:0;
   display:flex; justify-content:space-between; align-items:flex-start;
-  padding:20px 24px; pointer-events:none;
+  padding:14px 18px; pointer-events:none;
   background:linear-gradient(180deg,#0A080990 0%,transparent 100%);
   transition: filter 0.4s;
 }
-#brand { font-size:10px; letter-spacing:3px; color:#5A4A52; text-transform:uppercase; margin-bottom:3px; }
-#title { font-size:24px; font-weight:700; color:#E8D5A0; letter-spacing:2px; text-shadow:0 2px 12px #00000090; }
-#subtitle { font-size:11px; color:#5A4A52; letter-spacing:2px; margin-top:2px; }
+#brand { font-size:8px; letter-spacing:2.5px; color:#5A4A52; text-transform:uppercase; margin-bottom:2px; opacity:0.75; }
+#title { font-size:17px; font-weight:700; color:#E8D5A0; letter-spacing:1.5px; text-shadow:0 2px 12px #00000090; opacity:0.9; }
+#subtitle { font-size:9px; color:#5A4A52; letter-spacing:1.5px; margin-top:1px; }
 
-#stats { display:flex; gap:10px; }
+#stats { display:flex; gap:7px; }
 .stat-box {
-  background:#1C1018CC; border:1px solid #B8952A28;
-  border-radius:10px; padding:9px 14px; text-align:center;
+  background:#1C1018B0; border:1px solid #B8952A20;
+  border-radius:8px; padding:6px 10px; text-align:center;
   backdrop-filter:blur(12px);
-  box-shadow:0 4px 16px #00000060, inset 0 1px 0 #B8952A18;
+  box-shadow:0 3px 12px #00000050, inset 0 1px 0 #B8952A14;
 }
-.stat-num { font-size:20px; font-weight:700; color:#B8952A; line-height:1; }
-.stat-lbl { font-size:9px; color:#5A4A52; letter-spacing:1.5px; margin-top:3px; text-transform:uppercase; }
+.stat-num { font-size:15px; font-weight:700; color:#B8952A; line-height:1; }
+.stat-lbl { font-size:7.5px; color:#5A4A52; letter-spacing:1.2px; margin-top:2px; text-transform:uppercase; }
 
 #controls {
   position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
@@ -42,26 +42,27 @@ canvas { display:block; }
 /* Floating camera button — Vivino-style, above the view controls */
 #btn-camera-wrap {
   position: fixed;
-  bottom: 88px;
-  right: 24px;
+  bottom: 80px;
+  right: 20px;
   z-index: 25;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
+  opacity: 0.82;
 }
 #btn-camera {
-  width: 62px; height: 62px;
-  border-radius: 31px;
+  width: 50px; height: 50px;
+  border-radius: 25px;
   border: none; cursor: pointer;
   background: linear-gradient(160deg, #7A1A3A 0%, #4A0E22 100%);
-  box-shadow: 0 6px 0 #00000080, 0 12px 32px #7A1A3A60, 0 0 0 4px #080608, 0 0 0 5px #B8952A40, inset 0 1px 0 #E8D5A040;
+  box-shadow: 0 4px 0 #00000080, 0 8px 20px #7A1A3A50, 0 0 0 3px #080608, 0 0 0 4px #B8952A30, inset 0 1px 0 #E8D5A040;
   display: flex; align-items: center; justify-content: center;
   transition: all .2s;
 }
 #btn-camera:active { transform: scale(0.94); }
 #btn-camera-label {
-  font-size: 9px; letter-spacing: 1.5px; color: #7A6570;
+  font-size: 8px; letter-spacing: 1.2px; color: #7A6570;
   text-transform: uppercase;
 }
 
@@ -150,24 +151,25 @@ canvas { display:block; }
 }
 
 #light-wrap {
-  position: fixed; bottom: 88px; left: 24px;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  position: fixed; bottom: 80px; left: 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
   z-index: 20; transition: filter 0.4s;
+  opacity: 0.82;
 }
 #btn-light {
-  width: 54px; height: 54px; border-radius: 50%;
+  width: 44px; height: 44px; border-radius: 50%;
   border: none; cursor: pointer; background: #1A0E16;
-  box-shadow: 0 4px 0 #00000080, 0 8px 24px #00000060, inset 0 1px 0 #FFFFFF10;
+  box-shadow: 0 3px 0 #00000080, 0 6px 18px #00000060, inset 0 1px 0 #FFFFFF10;
   display: flex; align-items: center; justify-content: center;
   transition: background 0.35s, box-shadow 0.35s;
 }
 #btn-light.lit {
   background: radial-gradient(circle at 40% 35%, #FFF8D0, #E8C040 55%, #A07808);
-  box-shadow: 0 4px 0 #00000060, 0 0 28px #FFCC4470, 0 0 56px #FFB02030, inset 0 1px 0 #FFFFFF60;
+  box-shadow: 0 3px 0 #00000060, 0 0 20px #FFCC4470, 0 0 40px #FFB02030, inset 0 1px 0 #FFFFFF60;
 }
 #btn-light svg { transition: all 0.35s; }
 #btn-light.lit svg { filter: drop-shadow(0 0 5px #FFD040); }
-#light-label { font-size: 9px; letter-spacing: 1.5px; color: #3A2A32; text-transform: uppercase; pointer-events: none; transition: color 0.4s; }
+#light-label { font-size: 8px; letter-spacing: 1.2px; color: #3A2A32; text-transform: uppercase; pointer-events: none; transition: color 0.4s; }
 #light-label.lit { color: #C0A040; }
 
 /* ── SHELF 3D OVERLAY ────────────────────────────────────────────────────── */
@@ -288,13 +290,12 @@ canvas { display:block; }
 
 <div id="ui">
   <div>
-    <div id="brand">Haier HWS84GA · Wine Bank 50 SE</div>
     <div id="title">MA CAVE</div>
+    <div id="brand">Haier HWS84GA · Wine Bank 50 SE</div>
     <div id="subtitle">Collection privée · 3D</div>
   </div>
   <div id="stats">
-    <div class="stat-box"><div class="stat-num" id="stat-total">0</div><div class="stat-lbl">Bouteilles</div></div>
-    <div class="stat-box"><div class="stat-num">84</div><div class="stat-lbl">Capacité</div></div>
+    <div class="stat-box"><div class="stat-num"><span id="stat-total">0</span>/<span id="stat-capacity">84</span></div><div class="stat-lbl">Capacité</div></div>
   </div>
 </div>
 
@@ -302,7 +303,7 @@ canvas { display:block; }
 
 <div id="light-wrap">
   <button id="btn-light" onclick="toggleLight()" title="Lumière intérieure">
-    <svg id="bulb-svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#5A3A60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <svg id="bulb-svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#5A3A60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="9" r="4"/>
       <path d="M10 13.5v1.5a2 2 0 0 0 4 0v-1.5"/>
       <line x1="12" y1="2" x2="12" y2="1"/>
@@ -325,28 +326,28 @@ canvas { display:block; }
 <input id="gallery-input" type="file" accept="image/*" style="display:none">
 <div id="btn-camera-wrap">
   <!-- Bouton Galerie -->
-  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:5px;">
     <button id="btn-gallery" onclick="openGalleryGuarded()" title="Importer une photo"
-      style="width:54px;height:54px;border-radius:50%;border:none;cursor:pointer;
+      style="width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;
         background:#2E1A24;
-        box-shadow:0 4px 0 #00000080,0 8px 24px #00000060,inset 0 1px 0 #FFFFFF10;
+        box-shadow:0 3px 0 #00000080,0 6px 18px #00000060,inset 0 1px 0 #FFFFFF10;
         display:flex;align-items:center;justify-content:center;transition:all .2s;">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E8D5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#E8D5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
         <polyline points="21 15 16 10 5 21"/>
       </svg>
     </button>
-    <div style="font-size:9px;letter-spacing:1.5px;color:#7A6570;text-transform:uppercase;">Galerie</div>
+    <div style="font-size:8px;letter-spacing:1.2px;color:#7A6570;text-transform:uppercase;">Galerie</div>
   </div>
 
   <!-- Bouton Caméra -->
-  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:5px;">
     <button id="btn-camera" onclick="openCameraGuarded()" title="Scanner une étiquette"
-      style="width:62px;height:62px;border-radius:31px;border:none;cursor:pointer;
+      style="width:50px;height:50px;border-radius:25px;border:none;cursor:pointer;
         background:linear-gradient(160deg,#7A1A3A 0%,#4A0E22 100%);
-        box-shadow:0 6px 0 #00000080,0 12px 32px #7A1A3A60,0 0 0 4px #080608,0 0 0 5px #B8952A40,inset 0 1px 0 #E8D5A040;
+        box-shadow:0 4px 0 #00000080,0 8px 20px #7A1A3A50,0 0 0 3px #080608,0 0 0 4px #B8952A30,inset 0 1px 0 #E8D5A040;
         display:flex;align-items:center;justify-content:center;transition:all .2s;">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E8D5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#E8D5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
         <circle cx="12" cy="13" r="4"/>
       </svg>
@@ -389,7 +390,7 @@ canvas { display:block; }
   <canvas id="shelf-canvas"></canvas>
   <div id="shelf-topbar">
     <div>
-      <div id="shelf-title">Clayette nº<span id="shelf-num">1</span></div>
+      <div id="shelf-title">Clayette</div>
       <div id="shelf-subtitle">28 emplacements</div>
     </div>
     <button id="btn-close-shelf" onclick="closeShelfView()">✕</button>
@@ -422,7 +423,7 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x1A0810, 0.032);
 
 const camera = new THREE.PerspectiveCamera(36, innerWidth/innerHeight, 0.01, 80);
-camera.position.set(0, 0, 9.1);
+camera.position.set(0, 0, 7.8);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
 renderer.setClearColor(0x000000, 0);
@@ -529,7 +530,21 @@ box(iW-2*innerGap, 0.02, iD-2*innerGap, matInner, 0, -CH/2+WT+0.025, 0);
 // Control panel
 const PNLH=0.095, pnlY=CH/2-PNLH/2, pnlZ=CD/2-0.005;
 box(CW-2*FRTW,PNLH,0.008,matPanel,0,pnlY,pnlZ);
-box(0.30,0.042,0.003,matScreen,-0.08,pnlY,pnlZ+0.005);
+// Logo de marque "HAIER" à la place de l'écran
+const haierCanvas=document.createElement('canvas');
+haierCanvas.width=512; haierCanvas.height=96;
+const haierCtx=haierCanvas.getContext('2d');
+haierCtx.fillStyle='rgba(0,0,0,0)'; haierCtx.fillRect(0,0,512,96);
+haierCtx.fillStyle='#C8CDD4';
+haierCtx.font='bold 62px Arial, sans-serif';
+haierCtx.textAlign='center'; haierCtx.textBaseline='middle';
+haierCtx.letterSpacing='6px';
+haierCtx.fillText('HAIER',256,52);
+const haierTex=new THREE.CanvasTexture(haierCanvas);
+const haierMat=new THREE.MeshStandardMaterial({map:haierTex,transparent:true,roughness:0.4,metalness:0.6});
+const haierLogo=new THREE.Mesh(new THREE.PlaneGeometry(0.30,0.056),haierMat);
+haierLogo.position.set(0,pnlY,pnlZ+0.005);
+caveGroup.add(haierLogo);
 const iconMat=new THREE.MeshStandardMaterial({color:0x334466,roughness:0.4,metalness:0.5,emissive:0x112244,emissiveIntensity:0.5});
 [-0.38,-0.30,0.18,0.26,0.34].forEach(ix=>box(0.025,0.018,0.003,iconMat,ix,pnlY,pnlZ+0.004));
 
@@ -545,10 +560,12 @@ const SLAT_COUNT=6, slatSpacing=shelfW/SLAT_COUNT;
 const backZ=-(CD/2-WT)+0.05, frontZ2=backZ+shelfD3, midZ=backZ+shelfD3/2;
 
 const shelfGroups=[];
+// Noms de région par clayette — index 0 = clayette du bas, index 6 = clayette du haut
+const REGION_NAMES = ['Magnum et autre','Italien','Languedoc','Bordeaux','Rhône','Bourgogne','Espagnol'];
 // Shelf data: bottles per shelf (max 12)
 const shelfData = Array.from({length:SHELF_COUNT}, (_,i)=>({
   index: i,
-  label: `Clayette nº${i+1}`,
+  label: REGION_NAMES[i] || `Clayette nº${i+1}`,
   bottles: Array(28).fill(null) // niveau bas: 0-6 devant/7-13 fond · niveau haut: 14-20 devant/21-27 fond
 }));
 
@@ -632,6 +649,21 @@ const hadSavedBottles = loadShelfData();
   if(changed) saveShelfData();
 })();
 
+// Texture pour le nom de région gravé sur le rebord en bois de chaque clayette
+function makeShelfLabelTexture(text){
+  const c=document.createElement('canvas');
+  c.width=512; c.height=128;
+  const ctx=c.getContext('2d');
+  ctx.clearRect(0,0,512,128);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font="bold 36px Georgia, serif";
+  ctx.fillStyle='#0A0806';
+  ctx.fillText(text.toUpperCase(), 256, 66);
+  const tex=new THREE.CanvasTexture(c);
+  tex.needsUpdate=true;
+  return tex;
+}
+
 function buildShelf(sy, idx){
   const g=new THREE.Group();
   g.position.set(0,sy,0);
@@ -644,6 +676,12 @@ function buildShelf(sy, idx){
   }
   lbox(iW, slatH*2.0, slatSec*0.30, matWoodEdge, 0, slatH*0.5, frontZ2);
   lbox(iW, slatH*1.6, slatSec*0.18, matWoodEdge, 0, slatH*0.3, backZ);
+  // Nom de la région, sur la face avant du rebord en bois
+  const labelTex = makeShelfLabelTexture(REGION_NAMES[idx] || `Clayette ${idx+1}`);
+  const labelMat = new THREE.MeshBasicMaterial({map:labelTex, transparent:true, depthWrite:false});
+  const namePlate = new THREE.Mesh(new THREE.PlaneGeometry(iW*0.32, iW*0.32*(128/512)), labelMat);
+  namePlate.position.set(0, slatH*0.5, frontZ2 + slatSec*0.30/2 + 0.002);
+  g.add(namePlate);
   // Latte de bord gauche — collée au bord de la cave
   // 8 lattes: bords EXACTEMENT aux extrémités de shelfW
   // Centres: latte 0 à -shelfW/2, latte 7 à +shelfW/2, les 6 autres réparties
@@ -716,9 +754,6 @@ const glassW=CW-2*DB, glassH=doorH-2*DB;
 const glass1=new THREE.Mesh(new THREE.PlaneGeometry(glassW,glassH),matGlass);
 glass1.position.set(CW/2,doorY,0.005); glass1.renderOrder=10; doorGroup.add(glass1);
 
-const logoMat=new THREE.MeshStandardMaterial({color:0xDDCCBB,roughness:0.3,metalness:0.4,transparent:true,opacity:0.55});
-const logoMesh=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.028,0.001),logoMat);
-logoMesh.position.set(CW/2,doorY+doorH/2-DB-0.06,0.014); doorGroup.add(logoMesh);
 const lock=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.008,12),matGold);
 lock.rotation.x=Math.PI/2; lock.position.set(CW/2,doorY-doorH/2+0.06,0.016); doorGroup.add(lock);
 
@@ -1290,13 +1325,13 @@ function openShelfView(shelfObj){
   sBottleFlipped={};
   // Flip states reset to default (cul vers rebord avant)
   data.bottles.forEach((b,i) => { if(b) b.flipped = false; sBottleFlipped[i]=false; });
-  document.getElementById('shelf-num').textContent=shelfObj.index+1;
+  document.getElementById('shelf-title').textContent = data.label;
   if(pendingBottle){
     document.getElementById('shelf-subtitle').textContent = 'Touche l\'emplacement exact — devant/fond, bas/haut';
     placementStage = 'level';
     renderPlacementStagePanel();
   } else {
-    document.getElementById('shelf-subtitle').textContent=data.label+' · 28 emplacements';
+    document.getElementById('shelf-subtitle').textContent='Clayette nº'+(shelfObj.index+1)+' · 28 emplacements';
     document.getElementById('shelf-hint').textContent = '☞ Tap pour sélectionner · Glisser pour déplacer';
     resetPlacementStage();
   }
@@ -1336,7 +1371,7 @@ function closeShelfView(){
 // ─── Orbit + Shelf drag + double-tap ─────────────────────────────────────────
 let drag=false, px=0, py=0;
 let rotX=0.10, rotY=0.275, tRotX=0.10, tRotY=0.275;
-let zoom=9.1, tZoom=9.1;
+let zoom=7.8, tZoom=7.8;
 let activeShelf=null, dragStartY=0, shelfStartY=0, dragZoomLock=8.8;
 let lastTapTime=0, lastTapShelf=null;
 
@@ -1437,7 +1472,7 @@ function toggleLight(){
 // ─── Views ────────────────────────────────────────────────────────────────────
 function setView(v){
   document.querySelectorAll('.ctrl-btn').forEach(b=>b.classList.remove('active'));
-  if(v==='front'){tRotX=0.06;tRotY=0.0; tZoom=8.8; document.getElementById('btn-front').classList.add('active');}
+  if(v==='front'){tRotX=0.06;tRotY=0.0; tZoom=7.5; document.getElementById('btn-front').classList.add('active');}
 }
 
 // ─── Render loop ──────────────────────────────────────────────────────────────
