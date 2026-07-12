@@ -173,6 +173,7 @@ canvas { display:block; }
 /* ── SHELF 3D OVERLAY ────────────────────────────────────────────────────── */
 #shelf-overlay {
   position: fixed; inset: 0; z-index: 100;
+  background: #0A0608;
   opacity: 0; pointer-events: none;
   transition: opacity 0.5s;
 }
@@ -214,7 +215,21 @@ canvas { display:block; }
 #shelf-count span { color: #B8952A; font-weight: 700; }
 #shelf-hint { font-size: 10px; color: #3A2A32; letter-spacing: 1px; }
 
-/* Panneau de choix par étapes (étage puis devant/fond) en mode placement */
+/* Panneau d'infos d'une bouteille déjà rangée, affiché par-dessus la clayette zoomée */
+#bottle-info-overlay {
+  position: absolute; inset: 0; z-index: 50;
+  display: none; align-items: flex-end; justify-content: center;
+}
+#bottle-info-overlay.visible { display: flex; }
+#bottle-info-backdrop {
+  position: absolute; inset: 0;
+  background: #08060890; backdrop-filter: blur(8px);
+}
+#bottle-info-card {
+  position: relative; width: 100%; max-width: 480px; max-height: 78vh;
+  overflow-y: auto; background: #150C12; border-radius: 20px 20px 0 0;
+  padding: 26px 22px 32px; box-shadow: 0 -8px 40px #00000060;
+}
 #placement-stage-panel {
   position: absolute; left: 0; right: 0; bottom: 100px; z-index: 15;
   display: none; flex-direction: column; align-items: center; gap: 10px;
@@ -381,6 +396,10 @@ canvas { display:block; }
   </div>
   <button id="btn-delete-bottle" onclick="deleteSelectedBottle()">🗑 Supprimer la bouteille</button>
   <div id="placement-stage-panel"></div>
+  <div id="bottle-info-overlay">
+    <div id="bottle-info-backdrop" onclick="closeBottleInfoPanel()"></div>
+    <div id="bottle-info-card"></div>
+  </div>
   <div id="shelf-bottombar">
     <div id="shelf-count"><span id="fill-count">0</span> / 28 emplacements occupés</div>
     <div id="shelf-hint">☞ Tap pour sélectionner · Glisser pour déplacer</div>
@@ -737,6 +756,7 @@ let sGroup=null;
 let sBottleMeshes=[];     // [{mesh:Group, slotIndex:int}]
 let sSlotHitboxes=[];     // [{mesh:Mesh, slotIndex:int}] — zones invisibles pour choisir un emplacement
 let sSelectedSlot=null;   // slot index currently selected
+let sInfoTapTimer=null;   // délai avant d'afficher les infos d'une bouteille, pour laisser une chance au double-tap (flip)
 let sPlacementDownX=0, sPlacementDownY=0, sPlacementCandidateSlot=null; // pour distinguer tap (placer) et glissé (tourner) en mode placement
 let sDragBottle=false;    // dragging a bottle
 let sDragStartSlot=null;
@@ -877,6 +897,7 @@ function initShelfRenderer(){
       if(sPendingTap && sPendingTap.slotIndex===hit.slotIndex && now-sPendingTap.time<350){
         clearTimeout(sPendingTap.timer);
         sPendingTap=null;
+        if(sInfoTapTimer){ clearTimeout(sInfoTapTimer); sInfoTapTimer=null; }
         sFlipBottle(hit.slotIndex);
         return; // NE PAS sélectionner, NE PAS déplacer
       }
@@ -936,6 +957,14 @@ function initShelfRenderer(){
           sMoveBottle(sDragStartSlot, targetSlot);
           sSelectedSlot = targetSlot;
         }
+      } else {
+        // Tap simple (pas de glissé) : affiche les infos, sauf si un second tap arrive (flip)
+        const tappedSlot = sDragStartSlot;
+        if(sInfoTapTimer) clearTimeout(sInfoTapTimer);
+        sInfoTapTimer = setTimeout(() => {
+          sInfoTapTimer = null;
+          if(currentShelfData) showBottleInfoPanel(currentShelfData.bottles[tappedSlot]);
+        }, 360);
       }
     }
     sDrag=false; sDragBottle=false; sDragStartSlot=null;
@@ -1290,6 +1319,8 @@ function closeShelfView(){
   sSelectedSlot=null;
   updateDeleteButtonVisibility();
   resetPlacementStage();
+  closeBottleInfoPanel();
+  if(sInfoTapTimer){ clearTimeout(sInfoTapTimer); sInfoTapTimer=null; }
   if(sAnimId){cancelAnimationFrame(sAnimId);sAnimId=null;}
   document.getElementById('shelf-overlay').classList.remove('visible');
   document.getElementById('shelf-overlay').style.display = 'none';
@@ -1564,13 +1595,73 @@ document.getElementById('scan-body').addEventListener('click', function(e){
   addScannedBottle(lastScannedWine);
 });
 
+// Réaffiche les infos sauvegardées d'une bouteille déjà rangée (prix, notes, description…)
+// Affiché par-dessus la clayette zoomée, sans la fermer.
+function showBottleInfoPanel(bottle){
+  if(!bottle) return;
+  const col = '#'+(BCOLS_SCAN[bottle.type]||0x040101).toString(16).padStart(6,'0');
+
+  const priceHtml = bottle.price ? (
+    '<div style="background:#1A1018;border-radius:10px;padding:12px 14px;margin-bottom:12px;">'
+    + '<div style="display:flex;align-items:center;gap:12px;">'
+    + '<div style="flex:1;">'
+    + '<div style="font-size:10px;color:#7A6570;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;">Prix moyen · ' + (bottle.price.source||'Estimation') + '</div>'
+    + '<div style="font-size:18px;color:#B8952A;font-weight:700;">' + bottle.price.value + '</div>'
+    + (bottle.price.range ? '<div style="font-size:11px;color:#7A6570;margin-top:2px;">Fourchette : ' + bottle.price.range + '</div>' : '')
+    + '</div></div>'
+    + (bottle.price.url ? '<a href="'+bottle.price.url+'" target="_blank" style="display:block;margin-top:8px;font-size:11px;color:#7A6570;text-decoration:underline;">&#128279; Vérifier sur iDealwine</a>' : '')
+    + '</div>'
+  ) : '';
+
+  const vivinoScore = bottle.vivino ? (typeof bottle.vivino === 'object' ? bottle.vivino.score : bottle.vivino) : null;
+  const vivinoCount = bottle.vivino && typeof bottle.vivino === 'object' ? bottle.vivino.count : null;
+  const vivinoHtml = vivinoScore ? (
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:12px;color:#7A6570;">'
+    + '<span style="color:#B8952A;font-weight:700;">★ '+vivinoScore+'</span> Vivino'
+    + (vivinoCount ? ' · '+vivinoCount+' avis' : '')
+    + '</div>'
+  ) : '';
+
+  const scoresHtml = ['parker','suckling','robinson'].map(k => {
+    if(!bottle[k]) return '';
+    const labels = {parker:'Parker', suckling:'Suckling', robinson:'J. Robinson'};
+    return '<div style="text-align:center;flex:1;"><div style="font-size:20px;color:#B8952A;font-weight:700;">'+bottle[k]+'</div><div style="font-size:10px;color:#7A6570;letter-spacing:0.5px;">'+labels[k]+'</div></div>';
+  }).join('');
+
+  const desc = bottle.description
+    ? '<div style="font-size:13px;color:#F0E6D3CC;font-style:italic;border-left:2px solid #B8952A50;padding-left:14px;margin-bottom:18px;line-height:1.6;">'+bottle.description+'</div>'
+    : '';
+
+  const posLabel = bottle.position === 'back' ? 'au fond' : 'devant';
+  const levelLabel = bottle.level === 1 ? "étage du haut" : "étage du bas";
+
+  document.getElementById('bottle-info-card').innerHTML =
+    '<div style="border-left:4px solid '+col+';padding-left:14px;margin-bottom:14px;">'
+    + '<div style="font-size:19px;font-weight:700;color:#E8D5A0;">'+(bottle.name||'Vin')+'</div>'
+    + '<div style="font-size:12px;color:#7A6570;margin-bottom:16px;">'+(bottle.appellation||'')+' &middot; '+(bottle.vintage||'')+' &middot; '+(bottle.region||'')+(bottle.country?', '+bottle.country:'')+'</div>'
+    + '</div>'
+    + '<div style="font-size:11px;color:#7A6570;margin-bottom:14px;">📍 Rangée '+posLabel+' · '+levelLabel+'</div>'
+    + priceHtml
+    + vivinoHtml
+    + (scoresHtml ? '<div style="display:flex;gap:10px;margin-bottom:16px;">'+scoresHtml+'</div>' : '')
+    + desc
+    + '<button onclick="closeBottleInfoPanel()" style="width:100%;padding:15px;border:none;border-radius:12px;cursor:pointer;background:#221320;color:#B8952A;font-family:inherit;font-size:13px;font-weight:700;">Fermer</button>';
+
+  document.getElementById('bottle-info-overlay').classList.add('visible');
+}
+
+function closeBottleInfoPanel(){
+  document.getElementById('bottle-info-overlay').classList.remove('visible');
+}
+
 function addScannedBottle(wine){
   // Stocke la bouteille en attente, ouvre la porte, et attend le tap sur un emplacement de clayette
   pendingBottle = {
     name: wine.name, vintage: wine.vintage, type: wine.type,
-    appellation: wine.appellation || '', region: wine.region || '',
+    appellation: wine.appellation || '', region: wine.region || '', country: wine.country || '',
     labelImage: wine.labelImage || null, // photo réelle de l'étiquette, si disponible
     parker: wine.parker?.score || null, suckling: wine.suckling?.score || null, robinson: wine.robinson?.score || null,
+    price: wine.price || null, vivino: wine.vivino || null, description: wine.description || '',
     position: 'front', // valeur par défaut, réellement déterminée par l'emplacement tapé dans la clayette
     level: 0            // idem
   };
