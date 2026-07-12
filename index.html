@@ -1267,7 +1267,7 @@ function openShelfView(shelfObj){
   buildShelf3D(data);
   if(sAnimId) cancelAnimationFrame(sAnimId);
   animateShelf();
-  document.getElementById('shelf-overlay').classList.add('visible');
+  exclusiveOverlay('shelf-overlay');
   renderer.domElement.style.filter='blur(10px) brightness(0.35)';
   document.getElementById('ui').style.filter='blur(6px) brightness(0.4)';
   document.getElementById('controls').style.filter='blur(6px) brightness(0.4)';
@@ -1641,7 +1641,7 @@ function placeBottleAtSlot(slotIndex){
 
 function showScanPanel(html){
   document.getElementById('scan-body').innerHTML = html;
-  document.getElementById('scan-overlay').classList.add('visible');
+  exclusiveOverlay('scan-overlay');
 }
 function closeScanOverlay(){
   document.getElementById('scan-overlay').classList.remove('visible');
@@ -1651,6 +1651,17 @@ function closeScanOverlay(){
 // ── Outil de cadrage de l'étiquette (avant analyse) ─────────────────────────
 // Permet de sélectionner précisément la zone de l'étiquette dans la photo,
 // pour que la texture 3D affiche l'étiquette seule et non toute la scène.
+// Garantit qu'un seul overlay plein écran (scan / cadrage / clayette) n'est jamais actif à la fois.
+// Empêche un overlay resté ouvert par erreur d'intercepter des clics destinés à un autre.
+function exclusiveOverlay(idToShow){
+  ['scan-overlay','crop-overlay','shelf-overlay'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(id === idToShow) el.classList.add('visible');
+    else el.classList.remove('visible');
+  });
+}
+
 let cropSourceFile = null;
 let cropNatW = 0, cropNatH = 0;
 let cropBaseScale = 1, cropScale = 1, cropTx = 0, cropTy = 0;
@@ -1665,7 +1676,7 @@ async function openCropTool(file){
   // Réinitialise l'affichage pendant le chargement pour éviter de montrer l'ancienne photo
   imgEl.style.width = '0px';
   imgEl.style.height = '0px';
-  document.getElementById('crop-overlay').classList.add('visible');
+  exclusiveOverlay('crop-overlay');
   imgEl.src = url;
 
   try{
@@ -1967,4 +1978,4 @@ document.getElementById('camera-input').addEventListener('change', handleImageIn
 document.getElementById('gallery-input').addEventListener('change', handleImageInput);
 </script>
 </body>
-</html> 
+</html>
