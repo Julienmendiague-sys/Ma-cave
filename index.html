@@ -1027,18 +1027,17 @@ function getBottleBodyGeometry(bs){
   if(bottleGeoCache[key]) return bottleGeoCache[key];
   const pts = [
     [0.000, -0.170], // centre de la base
-    [0.050, -0.169],
-    [0.060, -0.163], // arrondi du talon
-    [0.060,  0.150], // corps cylindrique
-    [0.058,  0.175],
-    [0.048,  0.205], // début de l'épaule
-    [0.036,  0.245], // épaule haute typée Bordeaux
-    [0.031,  0.270],
-    [0.029,  0.300], // col
-    [0.028,  0.335],
-    [0.034,  0.352], // bague du goulot (collerette)
-    [0.031,  0.362],
-    [0.029,  0.368]  // ouverture, cachée par la capsule
+    [0.052, -0.169],
+    [0.060, -0.162], // arrondi du talon
+    [0.060,  0.190], // corps cylindrique, haut et droit (typique Bordeaux)
+    [0.057,  0.205], // début de l'épaule — angle net, pas une courbe progressive
+    [0.040,  0.225], // épaule haute et carrée, caractéristique Bordeaux
+    [0.030,  0.240], // transition rapide épaule → col
+    [0.029,  0.320], // long col droit
+    [0.028,  0.336],
+    [0.035,  0.350], // bague du goulot (collerette)
+    [0.031,  0.360],
+    [0.029,  0.367]  // ouverture, cachée par la capsule
   ].map(p => new THREE.Vector2(p[0]*bs, p[1]*bs));
   const geo = new THREE.LatheGeometry(pts, 20);
   bottleGeoCache[key] = geo;
