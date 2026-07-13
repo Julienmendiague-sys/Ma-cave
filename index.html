@@ -1019,6 +1019,32 @@ function initShelfRenderer(){
 
 // ── Génère une étiquette texturée avec le nom du vin ───────────────────────────
 const labelTextureCache = {};
+// Silhouette de bouteille réaliste (profil de révolution) — remplace les cylindres empilés
+// bs = échelle de la bouteille (BSCALE). Le profil couvre le corps + l'épaule + le col + la bague du goulot.
+const bottleGeoCache = {};
+function getBottleBodyGeometry(bs){
+  const key = Math.round(bs*1000);
+  if(bottleGeoCache[key]) return bottleGeoCache[key];
+  const pts = [
+    [0.000, -0.170], // centre de la base
+    [0.050, -0.169],
+    [0.060, -0.163], // arrondi du talon
+    [0.060,  0.150], // corps cylindrique
+    [0.058,  0.175],
+    [0.048,  0.205], // début de l'épaule
+    [0.036,  0.245], // épaule haute typée Bordeaux
+    [0.031,  0.270],
+    [0.029,  0.300], // col
+    [0.028,  0.335],
+    [0.034,  0.352], // bague du goulot (collerette)
+    [0.031,  0.362],
+    [0.029,  0.368]  // ouverture, cachée par la capsule
+  ].map(p => new THREE.Vector2(p[0]*bs, p[1]*bs));
+  const geo = new THREE.LatheGeometry(pts, 20);
+  bottleGeoCache[key] = geo;
+  return geo;
+}
+
 function makeLabelTexture(name, vintage, type, appellation, region){
   const key = (name||'')+'|'+(vintage||'')+'|'+(type||'')+'|'+(appellation||'')+'|'+(region||'');
   if(labelTextureCache[key]) return labelTextureCache[key];
@@ -1219,7 +1245,7 @@ function buildShelf3D(data){
 
         if(b){
           filled++;
-          const bMat=new THREE.MeshStandardMaterial({color:BCOLS3[b.type]||0x040101,roughness:0.12,metalness:0.25,transparent:true,opacity:0.95});
+          const bMat=new THREE.MeshStandardMaterial({color:BCOLS3[b.type]||0x040101,roughness:0.06,metalness:0.1,transparent:true,opacity:0.94});
           const cMat=new THREE.MeshStandardMaterial({color:CCOLS3[b.type]||0x7A1020,roughness:0.3,metalness:0.6});
           const labelTex = b.labelImage ? getRealLabelTexture(b.labelImage) : makeLabelTexture(b.name, b.vintage, b.type, b.appellation, b.region);
           const lMat=new THREE.MeshStandardMaterial({map: labelTex, roughness:0.85});
@@ -1232,10 +1258,8 @@ function buildShelf3D(data){
             g.rotation.x = -Math.PI/2;
             g.position.set(bx, level.yBase + 0.06*bs, frZ - 0.17*bs);
           }
-          const body=new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,16),bMat); body.castShadow=true; g.add(body);
-          const sho=new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,16),bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
-          const nk=new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,14),bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
-          const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,14),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
+          const body=new THREE.Mesh(getBottleBodyGeometry(bs),bMat); body.castShadow=true; g.add(body);
+          const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.032*bs,0.055*bs,14),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
           const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.17*bs,16,1,true,-Math.PI*0.7,Math.PI*1.4);
           const lbl=new THREE.Mesh(lblGeo,lMat); lbl.rotation.y = row.isBack ? Math.PI : 0; lbl.position.y=-0.04*bs; g.add(lbl);
           sGroup.add(g);
@@ -1558,7 +1582,7 @@ function renderBottlesInCave(){
       const bz = isBack ? backZ + 0.17*bs : frontZ2 - 0.17*bs;
       const by = shelfY + slatH/2 + 0.06*bs + level*(0.105*bs);
 
-      const bMat = new THREE.MeshStandardMaterial({color:BOTTLE_COLORS_CAVE[b.type]||0x040101, roughness:0.12, metalness:0.25, transparent:true, opacity:0.95});
+      const bMat = new THREE.MeshStandardMaterial({color:BOTTLE_COLORS_CAVE[b.type]||0x040101, roughness:0.06, metalness:0.1, transparent:true, opacity:0.94});
       const cMat = new THREE.MeshStandardMaterial({color:CAPSULE_COLORS_CAVE[b.type]||0x7A1020, roughness:0.3, metalness:0.6});
       const labelTex2 = b.labelImage ? getRealLabelTexture(b.labelImage) : makeLabelTexture(b.name, b.vintage, b.type, b.appellation, b.region);
       const lMat = new THREE.MeshStandardMaterial({map: labelTex2, roughness:0.85});
@@ -1572,10 +1596,8 @@ function renderBottlesInCave(){
         g.position.set(bx, by, frontZ2 - 0.17*bs);
       }
 
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06*bs,0.06*bs,0.34*bs,12), bMat); body.castShadow=true; g.add(body);
-      const sho  = new THREE.Mesh(new THREE.CylinderGeometry(0.036*bs,0.06*bs,0.08*bs,12), bMat); sho.position.y=0.21*bs; sho.castShadow=true; g.add(sho);
-      const nk   = new THREE.Mesh(new THREE.CylinderGeometry(0.026*bs,0.036*bs,0.1*bs,10), bMat); nk.position.y=0.30*bs; nk.castShadow=true; g.add(nk);
-      const cap  = new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.030*bs,0.055*bs,10), cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
+      const body = new THREE.Mesh(getBottleBodyGeometry(bs), bMat); body.castShadow=true; g.add(body);
+      const cap  = new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.032*bs,0.055*bs,10), cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
       const lbl  = new THREE.Mesh(new THREE.CylinderGeometry(0.063*bs,0.063*bs,0.18*bs,12,1,true,-Math.PI*0.7,Math.PI*1.4), lMat); 
       lbl.position.y=-0.04*bs; 
       lbl.rotation.y = isBack ? Math.PI : 0;
