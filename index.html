@@ -1248,7 +1248,7 @@ function buildShelf3D(data){
           const bMat=new THREE.MeshStandardMaterial({color:BCOLS3[b.type]||0x040101,roughness:0.06,metalness:0.1,transparent:true,opacity:0.94});
           const cMat=new THREE.MeshStandardMaterial({color:CCOLS3[b.type]||0x7A1020,roughness:0.3,metalness:0.6});
           const labelTex = b.labelImage ? getRealLabelTexture(b.labelImage) : makeLabelTexture(b.name, b.vintage, b.type, b.appellation, b.region);
-          const lMat=new THREE.MeshStandardMaterial({map: labelTex, roughness:0.85});
+          const lMat=new THREE.MeshBasicMaterial({map: labelTex, toneMapped:false});
           const g=new THREE.Group();
           const bs=BSCALE;
           if(row.isBack){
@@ -1596,7 +1596,7 @@ function renderBottlesInCave(){
       const bMat = new THREE.MeshStandardMaterial({color:BOTTLE_COLORS_CAVE[b.type]||0x040101, roughness:0.06, metalness:0.1, transparent:true, opacity:0.94});
       const cMat = new THREE.MeshStandardMaterial({color:CAPSULE_COLORS_CAVE[b.type]||0x7A1020, roughness:0.3, metalness:0.6});
       const labelTex2 = b.labelImage ? getRealLabelTexture(b.labelImage) : makeLabelTexture(b.name, b.vintage, b.type, b.appellation, b.region);
-      const lMat = new THREE.MeshStandardMaterial({map: labelTex2, roughness:0.85});
+      const lMat = new THREE.MeshBasicMaterial({map: labelTex2, toneMapped:false});
 
       const g = new THREE.Group();
       if(isBack){
@@ -1991,9 +1991,9 @@ function confirmCrop(){
       const sh = Math.max(1, Math.min(cropNatH-sy, fh/displayScale));
 
       const outCanvas = document.createElement('canvas');
-      outCanvas.width = 520; outCanvas.height = Math.round(520/0.75); // format vertical 3:4
+      outCanvas.width = 900; outCanvas.height = Math.round(900/0.75); // format vertical 3:4
       outCanvas.getContext('2d').drawImage(imgEl, sx, sy, sw, sh, 0, 0, outCanvas.width, outCanvas.height);
-      croppedLabelImage = outCanvas.toDataURL('image/jpeg', 0.78);
+      croppedLabelImage = outCanvas.toDataURL('image/jpeg', 0.90);
     }
   }catch(err){
     console.error('Cadrage impossible, on continue avec la photo complète :', err);
