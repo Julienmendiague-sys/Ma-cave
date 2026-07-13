@@ -1260,8 +1260,19 @@ function buildShelf3D(data){
           }
           const body=new THREE.Mesh(getBottleBodyGeometry(bs),bMat); body.castShadow=true; g.add(body);
           const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.032*bs,0.055*bs,14),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
-          const lblGeo=new THREE.CylinderGeometry(0.062*bs,0.062*bs,0.17*bs,16,1,true,-Math.PI*0.7,Math.PI*1.4);
-          const lbl=new THREE.Mesh(lblGeo,lMat); lbl.rotation.y = row.isBack ? Math.PI : 0; lbl.position.y=-0.04*bs; g.add(lbl);
+          // Étiquette enroulée avec un angle calculé sur les vraies proportions de la photo
+          // (au lieu d'un angle fixe qui étirait l'image) — elle épouse la bouteille sans être déformée.
+          const lblRadius = 0.062*bs;
+          const isRealPhoto = !!b.labelImage;
+          const lblAspect = isRealPhoto ? (520/693) : (1024/560); // largeur/hauteur du contenu de la texture
+          const lblH = 0.20*bs;
+          const lblArcW = lblH*lblAspect;              // largeur réelle souhaitée de l'étiquette
+          const lblTheta = Math.min(Math.PI*1.94, lblArcW/lblRadius); // angle nécessaire pour cette largeur, à ce rayon
+          const lblGeo=new THREE.CylinderGeometry(lblRadius,lblRadius,lblH,32,1,true,-lblTheta/2,lblTheta);
+          const lbl=new THREE.Mesh(lblGeo,lMat);
+          lbl.rotation.y = row.isBack ? Math.PI : 0;
+          lbl.position.y=-0.04*bs;
+          g.add(lbl);
           sGroup.add(g);
           sBottleMeshes.push({group:g, slotIndex:idx});
         } else {
@@ -1598,8 +1609,15 @@ function renderBottlesInCave(){
 
       const body = new THREE.Mesh(getBottleBodyGeometry(bs), bMat); body.castShadow=true; g.add(body);
       const cap  = new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.032*bs,0.055*bs,10), cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
-      const lbl  = new THREE.Mesh(new THREE.CylinderGeometry(0.063*bs,0.063*bs,0.18*bs,12,1,true,-Math.PI*0.7,Math.PI*1.4), lMat); 
-      lbl.position.y=-0.04*bs; 
+      // Étiquette enroulée avec un angle calculé sur les vraies proportions de la photo
+      const lblRadius2 = 0.063*bs;
+      const isRealPhoto2 = !!b.labelImage;
+      const lblAspect2 = isRealPhoto2 ? (520/693) : (1024/560);
+      const lblH2 = 0.20*bs;
+      const lblArcW2 = lblH2*lblAspect2;
+      const lblTheta2 = Math.min(Math.PI*1.94, lblArcW2/lblRadius2);
+      const lbl  = new THREE.Mesh(new THREE.CylinderGeometry(lblRadius2,lblRadius2,lblH2,32,1,true,-lblTheta2/2,lblTheta2), lMat);
+      lbl.position.y=-0.04*bs;
       lbl.rotation.y = isBack ? Math.PI : 0;
       g.add(lbl);
 
