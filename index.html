@@ -1158,7 +1158,12 @@ function buildShelf3D(data){
     const sm = (s===0||s===7) ? mEdge : mWood;
     sb(slatSec2, slatH2, SD, sm, sx, 0, 0);
   }
-  // Front label rail
+  // Nom de la région, sur la face avant du rebord — même traitement que la cave principale
+  const shelfLabelTex = makeShelfLabelTexture(data.label);
+  const shelfLabelMat = new THREE.MeshBasicMaterial({map:shelfLabelTex, transparent:true, depthWrite:false});
+  const shelfNamePlate = new THREE.Mesh(new THREE.PlaneGeometry(SW*0.32, SW*0.32*(128/512)), shelfLabelMat);
+  shelfNamePlate.position.set(0, slatH2*0.5, frZ + slatSec2*0.30/2 + 0.004);
+  sGroup.add(shelfNamePlate);
 
 
   // 7 bouteilles par rangée, une rainure entre chaque paire de lattes adjacentes
