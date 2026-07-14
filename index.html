@@ -1023,75 +1023,78 @@ const labelTextureCache = {};
 // bs = échelle de la bouteille (BSCALE). shape = 'bordeaux' (épaule haute et carrée) ou 'bourgogne' (galbe continu, sans angle).
 const bottleGeoCache = {};
 const BOTTLE_PROFILES = {
-  // ── Bordeaux : corps haut et droit, épaule nette et carrée, long col — profil le plus détaillé ──
+  // ── Bordeaux : corps droit, épaule quasi à angle droit (marquée), long col — profil le plus détaillé ──
   bordeaux: [
     [0.000, -0.170], // centre de la base
-    [0.053, -0.169],
-    [0.061, -0.162], // arrondi du talon
-    [0.061,  0.185], // corps cylindrique, haut et droit
-    [0.060,  0.198], // amorce de l'épaule (léger galbe avant l'angle)
-    [0.055,  0.208],
-    [0.038,  0.226], // épaule haute et carrée, caractéristique Bordeaux
-    [0.031,  0.238], // transition rapide épaule → col
-    [0.0295, 0.250],
-    [0.029,  0.322], // long col droit
-    [0.0285, 0.336],
-    [0.035,  0.350], // bague du goulot (collerette)
-    [0.031,  0.360],
-    [0.029,  0.367]  // ouverture, cachée par la capsule
+    [0.050, -0.169],
+    [0.058, -0.163], // arrondi du talon
+    [0.058,  0.190], // corps cylindrique, droit
+    [0.058,  0.204], // le corps reste plein jusqu'à l'épaule...
+    [0.036,  0.211], // ...puis chute presque à angle droit : épaule "carrée" typique Bordeaux
+    [0.036,  0.223],
+    [0.0285, 0.234], // transition rapide épaule → col
+    [0.028,  0.322], // long col fin et droit
+    [0.0275, 0.336],
+    [0.034,  0.350], // bague du goulot (collerette)
+    [0.030,  0.360],
+    [0.028,  0.367]  // ouverture, cachée par la capsule
   ],
-  // ── Bourgogne : talon large, galbe continu et élégant, épaule tombante — profil le plus détaillé ──
+  // ── Bourgogne : bouteille large, galbe très progressif et arrondi, sans aucun angle — profil le plus détaillé ──
   bourgogne: [
-    [0.000, -0.175], // centre de la base
-    [0.059, -0.174],
-    [0.067, -0.167], // talon large, typique Bourgogne
-    [0.067,  0.060], // corps court et galbé
-    [0.0655, 0.100],
-    [0.061,  0.145],
-    [0.052,  0.185], // galbe continu, sans angle net
-    [0.0415, 0.222],
-    [0.033,  0.258], // épaule tombante caractéristique
-    [0.0292, 0.290],
-    [0.0285, 0.322], // col
-    [0.0285, 0.336],
-    [0.035,  0.350], // bague du goulot (collerette)
-    [0.031,  0.360],
-    [0.029,  0.367]  // ouverture, cachée par la capsule
+    [0.000, -0.180], // centre de la base
+    [0.062, -0.179],
+    [0.072, -0.170], // talon large, nettement plus large qu'une Bordeaux
+    [0.072,  0.050], // corps court et bien rond
+    [0.070,  0.090],
+    [0.065,  0.130],
+    [0.057,  0.170], // galbe long et continu, très arrondi
+    [0.047,  0.205],
+    [0.038,  0.235],
+    [0.031,  0.260], // épaule tombante, caractéristique Bourgogne
+    [0.0285, 0.290],
+    [0.028,  0.322], // col
+    [0.0275, 0.336],
+    [0.034,  0.350], // bague du goulot (collerette)
+    [0.030,  0.360],
+    [0.028,  0.367]  // ouverture, cachée par la capsule
   ],
-  // ── Rhône : bouteille lourde à épaules larges, col plus court ──
+  // ── Rhône : bouteille massive et large, col court ──
   rhone: [
-    [0.000, -0.172],
-    [0.058, -0.171],
-    [0.068, -0.163], // talon large et massif
-    [0.068,  0.090],
-    [0.065,  0.140],
-    [0.056,  0.185],
-    [0.043,  0.225],
-    [0.033,  0.258],
-    [0.0295, 0.290],
-    [0.029,  0.315], // col plus court que Bordeaux/Bourgogne
-    [0.0285, 0.336],
-    [0.035,  0.350], // bague du goulot
-    [0.031,  0.360],
-    [0.029,  0.367]
-  ],
-  // ── Italien : silhouette élancée, galbe modéré entre Bordeaux et Bourgogne ──
-  italien: [
-    [0.000, -0.168],
-    [0.048, -0.167],
-    [0.056, -0.161], // talon plus fin
-    [0.056,  0.150],
-    [0.054,  0.185],
-    [0.046,  0.218],
-    [0.035,  0.252],
-    [0.0295, 0.280],
-    [0.0285, 0.322], // col long et fin
-    [0.0285, 0.336],
+    [0.000, -0.176],
+    [0.060, -0.175],
+    [0.070, -0.166], // talon large et massif
+    [0.070,  0.080],
+    [0.066,  0.130],
+    [0.056,  0.175],
+    [0.042,  0.215],
+    [0.032,  0.245],
+    [0.0285, 0.275],
+    [0.028,  0.305], // col nettement plus court que Bordeaux/Bourgogne
+    [0.0275, 0.336],
     [0.034,  0.350], // bague du goulot
     [0.030,  0.360],
     [0.028,  0.367]
+  ],
+  // ── Italien : silhouette nettement plus fine et élancée ──
+  italien: [
+    [0.000, -0.166],
+    [0.044, -0.165],
+    [0.050, -0.160], // talon fin
+    [0.050,  0.160],
+    [0.049,  0.190],
+    [0.042,  0.218],
+    [0.033,  0.248],
+    [0.0285, 0.275],
+    [0.028,  0.322], // col long et fin
+    [0.0275, 0.336],
+    [0.033,  0.350], // bague du goulot
+    [0.029,  0.360],
+    [0.027,  0.367]
   ]
 };
+// Rayon réel du corps (au plus large) pour chaque forme — utilisé pour coller l'étiquette au bon rayon
+const BOTTLE_BODY_RADIUS = { bordeaux:0.058, bourgogne:0.072, rhone:0.070, italien:0.050 };
+
 function getBottleBodyGeometry(bs, shape='bordeaux'){
   const key = shape+'|'+Math.round(bs*1000);
   if(bottleGeoCache[key]) return bottleGeoCache[key];
@@ -1330,11 +1333,12 @@ function buildShelf3D(data){
             g.rotation.x = -Math.PI/2;
             g.position.set(bx, level.yBase + 0.06*bs, frZ - 0.17*bs);
           }
-          const body=new THREE.Mesh(getBottleBodyGeometry(bs, bottleShapeForShelfLabel(data.label)),bMat); body.castShadow=true; g.add(body);
+          const bottleShape = bottleShapeForShelfLabel(data.label);
+          const body=new THREE.Mesh(getBottleBodyGeometry(bs, bottleShape),bMat); body.castShadow=true; g.add(body);
           const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.032*bs,0.055*bs,14),cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
           // Étiquette enroulée avec un angle calculé sur les vraies proportions de la photo
           // (au lieu d'un angle fixe qui étirait l'image) — elle épouse la bouteille sans être déformée.
-          const lblRadius = 0.062*bs;
+          const lblRadius = (BOTTLE_BODY_RADIUS[bottleShape]||0.058)*bs + 0.001*bs;
           const isRealPhoto = !!b.labelImage;
           const lblAspect = isRealPhoto ? (520/693) : (1024/560); // largeur/hauteur du contenu de la texture
           const lblH = 0.20*bs;
@@ -1679,10 +1683,11 @@ function renderBottlesInCave(){
         g.position.set(bx, by, frontZ2 - 0.17*bs);
       }
 
-      const body = new THREE.Mesh(getBottleBodyGeometry(bs, bottleShapeForShelfLabel(shelf.label)), bMat); body.castShadow=true; g.add(body);
+      const bottleShape2 = bottleShapeForShelfLabel(shelf.label);
+      const body = new THREE.Mesh(getBottleBodyGeometry(bs, bottleShape2), bMat); body.castShadow=true; g.add(body);
       const cap  = new THREE.Mesh(new THREE.CylinderGeometry(0.030*bs,0.032*bs,0.055*bs,10), cMat); cap.position.y=0.385*bs; cap.castShadow=true; g.add(cap);
       // Étiquette enroulée avec un angle calculé sur les vraies proportions de la photo
-      const lblRadius2 = 0.063*bs;
+      const lblRadius2 = (BOTTLE_BODY_RADIUS[bottleShape2]||0.058)*bs + 0.001*bs;
       const isRealPhoto2 = !!b.labelImage;
       const lblAspect2 = isRealPhoto2 ? (520/693) : (1024/560);
       const lblH2 = 0.20*bs;
